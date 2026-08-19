@@ -1,7 +1,7 @@
 # gitops
 골라주개냥 CI/CD + GitOps 관련 Repo
 
-## 구조 (뼈대 단계, 2026-08-19 개정 — Troika 팀 실제 레포 패턴 참고해서 재구성)
+## 구조
 
 ```
 bootstrap/

@@ -3,7 +3,7 @@
 # 각 컴포넌트는 자체 sync-wave annotation으로 순서를 강제한다 (CRD → operator → workload).
 #
 # 주의: `directory.include`에 `{a,b,c}` 같은 중괄호(brace expansion) 문법은 ArgoCD가
-# 지원하지 않는다 — 실제로 Troika 팀이 이 문법을 썼다가 자식이 0개 생성되는 버그를 겪음.
+# 지원하지 않는다 — 이 문법을 쓰면 매칭이 안 돼서 자식이 0개 생성되는 버그가 발생할 수 있다.
 # 반드시 `**/application.yaml` 같은 더블스타(glob) 패턴을 써야 한다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
