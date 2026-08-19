@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  description: 인프라 addon/플랫폼 컴포넌트 전용 프로젝트
+  sourceRepos:
+    - https://github.com/urineun-jigeum-bildeujung/gitops.git
+    - "*" # addon들이 외부 Helm 저장소(jetstack, prometheus-community 등)를 직접 참조하므로 전체 허용
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

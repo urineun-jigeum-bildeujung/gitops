@@ -1,0 +1,81 @@
+# root-app이 이 파일을 sync하면 3개의 자식 Application이 생기고, 각자 자기 영역을 담당한다.
+# multi-document yaml — `---` 구분자로 3개 Application 정의.
+---
+# 자식 1 — projects/: AppProject CRD 2개 (services, platform)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-projects
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: projects
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+---
+# 자식 2 — platform/: platform-root App-of-apps (addon들)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: platform
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+---
+# 자식 3 — applications/: 서비스용 ApplicationSet (appset.yaml만 sync)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-applications
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: applications
+    directory:
+      recurse: false
+      include: "appset.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

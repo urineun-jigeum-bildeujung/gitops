@@ -1,0 +1,16 @@
+# 서비스 경계(백엔드/AI/타임딜 분리 여부)가 아직 확정 전이라 우선 공통 네임스페이스만 정의.
+# 확정되면 서비스/도메인 단위로 네임스페이스 추가 예정.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pet-subscription-system
+  labels:
+    kubernetes.io/metadata.name: pet-subscription-system
+---
+# TODO: 서비스 경계 확정 후 예)
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: pet-subscription-timedeal
+#   labels:
+#     kubernetes.io/metadata.name: pet-subscription-timedeal

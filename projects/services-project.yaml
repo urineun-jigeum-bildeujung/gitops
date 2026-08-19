@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: services
+  namespace: argocd
+spec:
+  description: 우리가 만드는 서비스(백엔드/AI/타임딜 등) 전용 프로젝트
+  sourceRepos:
+    - https://github.com/urineun-jigeum-bildeujung/gitops.git
+    - "" # TODO: values 레포 URL 추가
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

@@ -1,0 +1,23 @@
+# external-secrets-operator(40번)가 먼저 뜬 뒤(오퍼레이터+CRD 준비), 이 Application이
+# 실제 "어디서 시크릿을 가져올지" 설정(ClusterSecretStore, 서비스별 바인딩)을 적용.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: platform/91-external-secrets-config/manifests
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

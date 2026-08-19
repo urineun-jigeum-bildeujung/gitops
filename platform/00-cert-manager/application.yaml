@@ -1,0 +1,32 @@
+# cert-manager — Istio 대신 채택한 인증서 자동 발급/갱신(mTLS 준비 단계).
+# 외부 Helm 차트를 래퍼 없이 직접 참조 (source.chart 필드 사용).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: cert-manager
+    repoURL: https://charts.jetstack.io
+    targetRevision: "v1.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    helm:
+      releaseName: cert-manager
+      values: |
+        installCRDs: true
+        resources: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -1,0 +1,32 @@
+# External Secrets Operator(ESO) — AWS Secrets Manager 등 외부 저장소의 시크릿을
+# K8s Secret으로 자동 동기화해주는 오퍼레이터. 이 파일은 오퍼레이터 자체 설치만 담당.
+# 실제 "어디서 뭘 가져올지" 설정은 platform/91-external-secrets-config/ 에서 별도 관리.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: external-secrets
+    repoURL: https://charts.external-secrets.io
+    targetRevision: "0.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    helm:
+      releaseName: external-secrets
+      values: |
+        installCRDs: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-secrets
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

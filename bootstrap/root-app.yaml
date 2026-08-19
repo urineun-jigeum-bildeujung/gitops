@@ -1,0 +1,26 @@
+# 단일 부트스트랩 진입점 — kubectl apply -f bootstrap/root-app.yaml 한 번으로 시작.
+# 이 Application은 bootstrap/ 폴더 자신만 보고(recurse: false), 그 안의 apps.yaml(자식 3개)을 sync한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: bootstrap
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

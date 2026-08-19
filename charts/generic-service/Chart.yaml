@@ -1,0 +1,6 @@
+apiVersion: v2
+name: generic-service
+description: 프로젝트 공용 서비스 차트 — 모든 백엔드/AI/타임딜 서비스가 값만 바꿔서 재사용
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
