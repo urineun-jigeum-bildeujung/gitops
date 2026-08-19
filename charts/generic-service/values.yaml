@@ -19,6 +19,23 @@ service:
   port: 80
   targetPort: 8080
 
+# Spring Boot Actuator 기준 표준 메트릭 경로
+metrics:
+  enabled: true
+  path: /actuator/prometheus
+  interval: 15s
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  path: /
+  pathType: Prefix
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ""
+
 resources: {}
   # requests:
   #   cpu: 100m
@@ -32,7 +49,8 @@ autoscaling:
   maxReplicas: 5
   targetCPUUtilizationPercentage: 70
 
-# Argo Rollouts 카나리 — enabled=true면 Deployment 대신 Rollout 리소스가 생성됨
+# Argo Rollouts 카나리/블루그린 — 둘 중 하나만 true로 (동시에 켜면 안 됨).
+# 둘 다 false면 평범한 Deployment로 배포됨.
 canary:
   enabled: false
   steps:
@@ -43,7 +61,16 @@ canary:
     - setWeight: 100
   analysis:
     enabled: false
+    # 비워두면 이 차트가 자동 생성하는 <서비스명>-error-rate AnalysisTemplate을 사용.
+    # 도메인 특화 템플릿(예: 예측서비스의 MAPE 기반 템플릿)을 따로 만들어 쓰려면 여기 이름 지정.
     templateName: ""
+    # AnalysisTemplate이 참조할 Prometheus 주소 — kube-prometheus-stack 기본 설치 기준
+    prometheusAddress: "http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090"
+
+blueGreen:
+  enabled: false
+  autoPromotionEnabled: false
+  scaleDownDelaySeconds: 30
 
 networkPolicy:
   enabled: false

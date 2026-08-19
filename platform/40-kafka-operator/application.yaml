@@ -1,0 +1,33 @@
+# Strimzi Kafka Operator 설치. 실제 Kafka 클러스터(브로커)는 이 오퍼레이터가 준비된 뒤
+# platform/50-kafka-cluster/ 에서 별도 CR로 생성 (다른 오퍼레이터들과 동일한 "설치/설정 분리" 패턴).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: strimzi-kafka-operator
+    repoURL: https://strimzi.io/charts/
+    targetRevision: "0.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정 (로컬 Kafka 3.9.0과 호환 여부 확인)
+    helm:
+      releaseName: strimzi-kafka-operator
+      values: |
+        watchNamespaces:
+          - kafka
+        resources: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -1,0 +1,46 @@
+version: "3"
+
+tasks:
+  validate:
+    desc: 커밋 전 로컬 검증 — Helm 차트 렌더링 확인 + 전체 YAML 문법 검사
+    cmds:
+      - task: validate:chart
+      - task: validate:yaml
+
+  validate:chart:
+    desc: charts/generic-service를 여러 옵션 조합(기본/카나리+오토스케일링+네트워크정책)으로 렌더링해서 템플릿 문법 오류 확인
+    cmds:
+      - helm lint charts/generic-service --set image.repository=test --set image.tag=latest
+      - helm lint charts/generic-service --set image.repository=test --set image.tag=latest --set canary.enabled=true --set autoscaling.enabled=true --set networkPolicy.enabled=true
+      - helm template test charts/generic-service --set image.repository=test --set image.tag=latest > /dev/null
+      - helm template test charts/generic-service --set image.repository=test --set image.tag=latest --set canary.enabled=true --set autoscaling.enabled=true --set networkPolicy.enabled=true > /dev/null
+      - echo "차트 렌더링 검증 통과"
+
+  validate:yaml:
+    desc: charts/generic-service/templates(Helm 템플릿이라 순수 YAML 아님)를 제외한 모든 YAML 파일 문법 검사
+    cmds:
+      - |
+        python3 -c "
+        import yaml, glob, sys
+        ok = True
+        files = [f for f in glob.glob('**/*.yaml', recursive=True) if not f.startswith('charts/generic-service/templates/')]
+        for f in files:
+            try:
+                list(yaml.safe_load_all(open(f)))
+            except Exception as e:
+                ok = False
+                print(f'FAIL {f}: {e}')
+        if ok:
+            print(f'{len(files)}개 YAML 파일 문법 검사 통과')
+        else:
+            sys.exit(1)
+        "
+
+  bootstrap:
+    desc: 최초 부트스트랩 — ArgoCD 설치 여부 확인 후 root-app.yaml apply
+    preconditions:
+      - sh: kubectl get namespace argocd
+        msg: "argocd 네임스페이스가 없습니다. ArgoCD를 먼저 설치하세요."
+    cmds:
+      - kubectl apply -f bootstrap/root-app.yaml
+      - echo "root-app 적용 완료. 'kubectl get application -n argocd'로 자식 Application들이 생성되는지 확인하세요."

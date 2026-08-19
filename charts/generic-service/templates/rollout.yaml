@@ -1,4 +1,4 @@
-{{- if .Values.canary.enabled }}
+{{- if or .Values.canary.enabled .Values.blueGreen.enabled }}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
@@ -16,7 +16,9 @@ spec:
     metadata:
       labels:
         {{- include "generic-service.selectorLabels" . | nindent 8 }}
-        {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "generic-service.name" . }}
       containers:
@@ -30,12 +32,20 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
   strategy:
+    {{- if .Values.canary.enabled }}
     canary:
       steps:
         {{- toYaml .Values.canary.steps | nindent 8 }}
       {{- if .Values.canary.analysis.enabled }}
       analysis:
         templates:
-          - templateName: {{ .Values.canary.analysis.templateName }}
+          - templateName: {{ .Values.canary.analysis.templateName | default (printf "%s-error-rate" (include "generic-service.name" .)) }}
       {{- end }}
+    {{- else if .Values.blueGreen.enabled }}
+    blueGreen:
+      activeService: {{ include "generic-service.name" . }}
+      previewService: {{ include "generic-service.name" . }}-preview
+      autoPromotionEnabled: {{ .Values.blueGreen.autoPromotionEnabled }}
+      scaleDownDelaySeconds: {{ .Values.blueGreen.scaleDownDelaySeconds }}
+    {{- end }}
 {{- end }}

@@ -1,0 +1,25 @@
+{{- if .Values.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "generic-service.name" . }}
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+    # kube-prometheus-stack의 기본 serviceMonitorSelector가 release 라벨을 기준으로
+    # 고르는 경우가 많음 — 이 값이 실제 Prometheus Helm release 이름과 다르면
+    # ServiceMonitor를 만들어도 Prometheus가 무시할 수 있으니 주의.
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      {{- include "generic-service.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.interval }}
+      # 서비스 오브젝트의 라벨은 자동으로 메트릭 라벨이 되지 않으므로, K8s Service 이름을
+      # "service" 라벨로 명시적으로 붙여줌 — AnalysisTemplate 등에서 이 라벨로 필터링.
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+{{- end }}

@@ -1,0 +1,31 @@
+{{- if .Values.canary.analysis.enabled }}
+# 기본 제공 AnalysisTemplate — HTTP 5xx 에러율 기준. 카나리 단계마다 이 쿼리 결과를 보고
+# Argo Rollouts가 자동으로 진행/중단을 판단함.
+#
+# 예측 서비스처럼 "에러율은 정상인데 예측 정확도만 나빠지는" 경우를 잡아야 하는 서비스는
+# 이 기본 템플릿 대신 MAPE 등 도메인 지표 기반의 별도 AnalysisTemplate을 만들어서
+# canary.analysis.templateName 값으로 지정할 것.
+#
+# metric 이름(http_server_requests_seconds_count)은 Spring Boot Actuator + Micrometer
+# 기본 계측 기준. 다른 스택(Node.js 등) 서비스는 메트릭 이름을 별도 확인해서 맞출 것.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "generic-service.name" . }}-error-rate
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+spec:
+  metrics:
+    - name: error-rate
+      interval: 1m
+      count: 5
+      successCondition: result[0] <= 0.05
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: {{ .Values.canary.analysis.prometheusAddress }}
+          query: |
+            sum(rate(http_server_requests_seconds_count{service="{{ include "generic-service.name" . }}",status=~"5.."}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{service="{{ include "generic-service.name" . }}"}[5m]))
+{{- end }}

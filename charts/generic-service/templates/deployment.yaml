@@ -1,4 +1,4 @@
-{{- if not .Values.canary.enabled }}
+{{- if not (or .Values.canary.enabled .Values.blueGreen.enabled) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,9 +16,13 @@ spec:
     metadata:
       labels:
         {{- include "generic-service.selectorLabels" . | nindent 8 }}
-        {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
       annotations:
-        {{- toYaml .Values.podAnnotations | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "generic-service.name" . }}
       containers:

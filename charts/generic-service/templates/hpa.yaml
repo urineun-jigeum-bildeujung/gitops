@@ -7,8 +7,8 @@ metadata:
     {{- include "generic-service.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
-    apiVersion: {{ if .Values.canary.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
-    kind: {{ if .Values.canary.enabled }}Rollout{{ else }}Deployment{{ end }}
+    apiVersion: {{ if or .Values.canary.enabled .Values.blueGreen.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+    kind: {{ if or .Values.canary.enabled .Values.blueGreen.enabled }}Rollout{{ else }}Deployment{{ end }}
     name: {{ include "generic-service.name" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}

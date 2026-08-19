@@ -7,8 +7,29 @@ metadata:
 spec:
   type: {{ .Values.service.type }}
   ports:
-    - port: {{ .Values.service.port }}
+    - name: http
+      port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
   selector:
     {{- include "generic-service.selectorLabels" . | nindent 4 }}
+{{- if .Values.blueGreen.enabled }}
+---
+# 블루그린 preview 서비스 — Argo Rollouts가 여기 selector를 새 버전 ReplicaSet으로 동적 관리.
+# activeService(위)는 계속 안정 버전을 가리키다가, promote 시점에 새 버전으로 전환됨.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "generic-service.name" . }}-preview
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+  selector:
+    {{- include "generic-service.selectorLabels" . | nindent 4 }}
+{{- end }}
