@@ -1,0 +1,28 @@
+# Helm
+charts/*/charts/       # helm dependency build로 받은 서브차트 tarball
+*.tgz
+
+# 로컬 검증/렌더링 결과물 (실수로 커밋되는 것 방지)
+*.rendered.yaml
+rendered/
+
+# 클러스터 접속 정보
+kubeconfig
+*.kubeconfig
+
+# 로컬 개발용 임시 values 오버라이드
+*.local.yaml
+local-values.yaml
+
+# IDE / 에디터
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 임시/백업 파일
+*.bak
+*.orig

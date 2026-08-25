@@ -82,3 +82,16 @@ env: []
 
 podLabels: {}
 podAnnotations: {}
+
+# 서비스 이미지를 그대로 재사용하는 배치/스케줄 작업 (주문 자동확정, 타임딜 상태 전환 등).
+# 필요한 서비스만 채워서 쓰고, 없으면 빈 리스트로 둔다 — 항목마다 CronJob이 하나씩 생성됨.
+cronJobs: []
+  # - name: auto-confirm
+  #   schedule: "0 * * * *"
+  #   command: ["java", "-jar", "app.jar"]
+  #   args: ["--spring.profiles.active=batch-auto-confirm"]
+  #   suspend: false
+  #   concurrencyPolicy: Forbid    # 기본값. 이전 실행이 안 끝났으면 다음 스케줄 건너뜀
+  #   restartPolicy: OnFailure     # 기본값
+  #   env: []                     # 비우면 위 전역 env 사용
+  #   resources: {}                # 비우면 위 전역 resources 사용
