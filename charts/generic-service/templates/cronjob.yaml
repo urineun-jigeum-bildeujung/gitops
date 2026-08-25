@@ -1,0 +1,38 @@
+{{- range .Values.cronJobs }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" (include "generic-service.name" $) .name }}
+  labels:
+    {{- include "generic-service.labels" $ | nindent 4 }}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: {{ .concurrencyPolicy | default "Forbid" }}
+  suspend: {{ .suspend | default false }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "generic-service.selectorLabels" $ | nindent 12 }}
+        spec:
+          serviceAccountName: {{ include "generic-service.name" $ }}
+          restartPolicy: {{ .restartPolicy | default "OnFailure" }}
+          containers:
+            - name: {{ .name }}
+              image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              {{- with .command }}
+              command:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              env:
+                {{- toYaml (default $.Values.env .env) | nindent 16 }}
+              resources:
+                {{- toYaml (default $.Values.resources .resources) | nindent 16 }}
+{{- end }}
