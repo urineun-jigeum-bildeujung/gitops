@@ -1,0 +1,35 @@
+name: ✨ 변경/추가 요청
+description: 새 addon 도입, 구조 변경, 서비스 온보딩 등
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      options:
+        - platform addon 신규/변경
+        - 서비스 차트 (charts/generic-service) 기능 추가
+        - ArgoCD 구조 변경
+        - 서비스 온보딩 (신규 서비스를 gitops에 등록)
+        - 기타
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 필요한가
+      description: 어떤 문제를 해결하거나 어떤 요구사항 때문인지.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 구체적으로 뭘 바꾸는가
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 영향 범위 (선택)
+      description: 기존 서비스/addon에 영향이 있으면 적어주세요.
