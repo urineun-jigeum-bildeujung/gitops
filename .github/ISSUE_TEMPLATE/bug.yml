@@ -1,0 +1,42 @@
+name: 🐛 버그 신고
+description: 배포/addon/차트가 기대와 다르게 동작할 때
+title: "fix: "
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      options:
+        - platform addon (cert-manager, ingress-nginx, kube-prometheus-stack 등)
+        - 서비스 차트 (charts/generic-service)
+        - ArgoCD 구조 (bootstrap/, applications/, projects/)
+        - 기타
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 무엇이 잘못됐나
+      description: ArgoCD 상태(OutOfSync/Degraded 등)나 클러스터 증상을 포함해서 적어주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 재현 절차 / 발견 경위
+      placeholder: |
+        1. platform/xx-addon/application.yaml 수정 후 merge
+        2. ArgoCD sync 후 xx Pod가 CrashLoopBackOff
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 동작
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 로그 / kubectl 출력 / 스크린샷 (선택)
