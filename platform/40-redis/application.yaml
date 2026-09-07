@@ -1,0 +1,40 @@
+# 타임딜 동시성 락/카운터 용도로 사용하는 Redis.
+# Kafka/Postgres와 달리 CRD 기반 오퍼레이터가 필요 없어서, Loki/Tempo와 동일하게
+# Helm chart 하나로 바로 배포한다 (별도 인스턴스 CR 없음).
+#
+# architecture: standalone — 지금 규모(dev, 소규모 EKS 노드)에선 master+replica 구성이
+# 오버스펙이라 단일 인스턴스로 시작. 나중에 HA 필요해지면 replication으로 전환.
+# auth.enabled: false — 클러스터 내부에서만 접근하는 dev 환경이라 우선 비활성화.
+#   외부 노출 경로가 생기거나 운영 전환 시 재검토 필요.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: redis
+    repoURL: https://charts.bitnami.com/bitnami
+    targetRevision: "x.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    helm:
+      releaseName: redis
+      values: |
+        architecture: standalone
+        auth:
+          enabled: false
+        resources: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: redis
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
