@@ -12,7 +12,7 @@ spec:
   source:
     chart: kube-prometheus-stack
     repoURL: https://prometheus-community.github.io/helm-charts
-    targetRevision: "6x.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    targetRevision: "90.0.0" # 2026-09-08 기준 최신 안정 버전
     helm:
       releaseName: kube-prometheus-stack
       values: |
