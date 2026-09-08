@@ -20,7 +20,7 @@ spec:
   source:
     chart: redis
     repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: "x.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    targetRevision: "28.0.15" # 2026-09-08 기준 최신 안정 버전
     helm:
       releaseName: redis
       values: |

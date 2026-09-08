@@ -12,7 +12,7 @@ spec:
   source:
     chart: cloudnative-pg
     repoURL: https://cloudnative-pg.github.io/charts
-    targetRevision: "0.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    targetRevision: "0.29.0" # 2026-09-08 기준 최신 안정 버전
     helm:
       releaseName: cnpg
       values: |

@@ -14,7 +14,9 @@ spec:
   source:
     chart: strimzi-kafka-operator
     repoURL: https://strimzi.io/charts/
-    targetRevision: "0.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정 (로컬 Kafka 3.9.0과 호환 여부 확인)
+    # 최신(1.2.0)은 Kafka 4.2.x/4.3.x만 지원 — 로컬 Kafka 3.9.0과 맞추기 위해
+    # 3.9.0/3.9.1을 지원하는 마지막 버전인 0.45.2로 고정 (2026-09-08 확인).
+    targetRevision: "0.45.2"
     helm:
       releaseName: strimzi-kafka-operator
       values: |
