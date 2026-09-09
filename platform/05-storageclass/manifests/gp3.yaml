@@ -1,0 +1,17 @@
+# 기존에 EKS가 기본으로 만들어주는 "gp2" StorageClass는 구식(in-tree, kubernetes.io/aws-ebs)
+# 드라이버를 쓰는데, 이 드라이버는 Kubernetes 1.27부터 제거되어 더 이상 동작하지 않는다.
+# (실측: Jenkins/Kafka/Redis PVC가 전부 Pending으로 멈춰있던 원인)
+#
+# aws-ebs-csi-driver addon(모듈 eks에서 이미 설치됨, ebs.csi.aws.com)을 provisioner로 쓰는
+# gp3 StorageClass를 새로 만들고 default로 지정한다. gp2보다 저렴하고 빠르다.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+parameters:
+  type: gp3
