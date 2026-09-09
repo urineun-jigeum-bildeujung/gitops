@@ -1,0 +1,32 @@
+# Trivy Operator — 클러스터에 떠 있는 워크로드의 컨테이너 이미지를 주기적으로 스캔해서
+# 취약점을 VulnerabilityReport(CRD)로 만들어준다. ECR의 push-time 스캔(basic)과 달리
+# 이미 배포된 워크로드를 계속 재스캔해서, 배포 이후 새로 발견된 CVE도 잡아낸다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trivy-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: trivy-operator
+    repoURL: https://aquasecurity.github.io/helm-charts/
+    targetRevision: "0.36.0" # 2026-09-09 기준 최신 안정 버전 (appVersion 0.34.0)
+    helm:
+      releaseName: trivy-operator
+      values: |
+        resources: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trivy-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
