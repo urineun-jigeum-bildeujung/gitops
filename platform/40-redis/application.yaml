@@ -26,6 +26,10 @@ spec:
     helm:
       releaseName: redis
       values: |
+        # Bitnami가 무료 저장소(docker.io/bitnami/*)에서 과거 버전 태그를 전부 내리고
+        # bitnamilegacy/*로 옮겨서, 최신 아닌 버전(7.4.3)은 저장소를 명시해야 pull된다.
+        image:
+          repository: bitnamilegacy/redis
         architecture: standalone
         auth:
           enabled: false
