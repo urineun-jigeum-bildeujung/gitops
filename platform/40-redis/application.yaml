@@ -30,6 +30,13 @@ spec:
         # bitnamilegacy/*로 옮겨서, 최신 아닌 버전(7.4.3)은 저장소를 명시해야 pull된다.
         image:
           repository: bitnamilegacy/redis
+        # 차트 자체가 image.repository를 "표준(docker.io/bitnami/*)이 아니면" helm template
+        # 렌더링을 에러로 막는 검증 로직을 내장하고 있어서(NOTES.txt), 이 옵션 없이는
+        # ArgoCD가 매니페스트 생성 자체에 실패해 ComparisonError로 멈춘다. 의도적으로
+        # legacy 저장소를 쓴다는 걸 차트에 알려주는 옵션.
+        global:
+          security:
+            allowInsecureImages: true
         architecture: standalone
         auth:
           enabled: false
