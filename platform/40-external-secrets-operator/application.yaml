@@ -15,7 +15,7 @@ spec:
   source:
     chart: external-secrets
     repoURL: https://charts.external-secrets.io
-    targetRevision: "0.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    targetRevision: "2.10.0" # 2026-09-08 기준 최신 안정 버전 (메이저가 0.x가 아니라 2.x대로 넘어갔음)
     helm:
       releaseName: external-secrets
       values: |

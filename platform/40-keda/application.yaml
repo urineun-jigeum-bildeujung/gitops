@@ -12,7 +12,7 @@ spec:
   source:
     chart: keda
     repoURL: https://kedacore.github.io/charts
-    targetRevision: "2.x.x" # TODO: 실제 적용 시 최신 안정 버전으로 고정
+    targetRevision: "2.20.2" # 2026-09-08 기준 최신 안정 버전
     helm:
       releaseName: keda
       values: |
