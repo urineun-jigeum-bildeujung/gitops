@@ -16,7 +16,8 @@ platform/
   05-storageclass/             gp3 기본 StorageClass (EKS 기본 gp2는 구식 드라이버라 K8s 1.27+에서 동작 안 함)
   10-ingress-nginx/            클러스터 진입점
   30-kube-prometheus-stack/, 30-loki/, 30-tempo/    관찰성 3종
-  40-cnpg-operator/, 40-keda/, 40-external-secrets-operator/, 40-kafka-operator/   오퍼레이터 4종
+  40-cnpg-operator/, 40-keda/, 40-external-secrets-operator/, 40-kafka-operator/,
+  40-trivy-operator/                     오퍼레이터 5종 (trivy-operator는 이미지 취약점 스캔)
   40-redis/                    타임딜 동시성 락/카운터용 Redis (오퍼레이터 없이 chart 직접 배포)
   40-jenkins/                  CI 서버 (오퍼레이터 없이 chart 직접 배포, Kubernetes plugin으로 동적 agent)
   50-kafka-cluster/            실제 Kafka 브로커 클러스터(KRaft 모드) + 토픽 7종
