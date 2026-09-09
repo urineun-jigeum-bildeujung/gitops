@@ -1,21 +1,23 @@
+# Barman Cloud CNPG-I Plugin — CNPG Operator(40번)가 설치된 뒤 같은 namespace에 배포한다.
+# cert-manager가 발급하는 TLS 인증서를 사용하므로 cert-manager sync wave(-10) 이후에 동작한다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cnpg-operator
+  name: barman-cloud-plugin
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform
   source:
-    chart: cloudnative-pg
+    chart: plugin-barman-cloud
     repoURL: https://cloudnative-pg.github.io/charts
-    # Barman Cloud Plugin v0.14.0의 최소 요구사항(CNPG 1.26+)을 만족하는 버전으로 고정.
-    targetRevision: "0.29.0"
+    # chart 0.7.1 = Barman Cloud Plugin application v0.14.0
+    targetRevision: "0.7.1"
     helm:
-      releaseName: cnpg
+      releaseName: plugin-barman-cloud
       values: |
         resources: {}
   destination:

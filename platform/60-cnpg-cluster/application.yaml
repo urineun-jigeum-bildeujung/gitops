@@ -1,26 +1,22 @@
+# CNPG Operator와 Barman Cloud Plugin이 준비된 다음 PostgreSQL Cluster와 백업 CR을 적용한다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cnpg-operator
+  name: petflow-db
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "3"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform
   source:
-    chart: cloudnative-pg
-    repoURL: https://cloudnative-pg.github.io/charts
-    # Barman Cloud Plugin v0.14.0의 최소 요구사항(CNPG 1.26+)을 만족하는 버전으로 고정.
-    targetRevision: "0.29.0"
-    helm:
-      releaseName: cnpg
-      values: |
-        resources: {}
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: platform/60-cnpg-cluster/manifests
   destination:
     server: https://kubernetes.default.svc
-    namespace: cnpg-system
+    namespace: database
   syncPolicy:
     automated:
       prune: true

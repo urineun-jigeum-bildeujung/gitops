@@ -16,7 +16,9 @@ platform/
   10-ingress-nginx/            클러스터 진입점
   30-kube-prometheus-stack/, 30-loki/, 30-tempo/    관찰성 3종
   40-cnpg-operator/, 40-keda/, 40-external-secrets-operator/, 40-kafka-operator/   오퍼레이터 4종
+  50-barman-cloud-plugin/  CNPG S3 backup/restore 플러그인
   50-kafka-cluster/            실제 Kafka 브로커 클러스터(KRaft 모드)
+  60-cnpg-cluster/             PostgreSQL Cluster, PVC, ObjectStore, ScheduledBackup
   91-external-secrets-config/  ESO의 "어디서 뭘 가져올지" 설정 (ClusterSecretStore 등)
   root.yaml                    platform 레이어 App-of-apps root
 applications/
@@ -36,4 +38,3 @@ addon들은 별도 래퍼 Chart.yaml 없이 ArgoCD Application의 `source.chart`
 
 Kafka 토픽(KafkaTopic)은 서비스/이벤트 목록이 아직 초안이라 미포함 — 확정되면
 `platform/50-kafka-cluster/manifests/`에 추가 예정.
-
