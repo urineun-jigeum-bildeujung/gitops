@@ -37,10 +37,31 @@ tasks:
         "
 
   bootstrap:
-    desc: 최초 부트스트랩 — ArgoCD 설치 여부 확인 후 root-app.yaml apply
+    desc: 최초 부트스트랩 — ArgoCD 설치까지 포함해서 한 번에 (재구축 후에도 이 하나로 충분)
+    cmds:
+      - task: bootstrap:argocd
+      - task: bootstrap:root-app
+
+  bootstrap:argocd:
+    desc: ArgoCD Helm 설치/업그레이드 (이미 있으면 그대로 유지, --install이라 몇 번을 실행해도 안전)
+    vars:
+      ARGOCD_CHART_VERSION: "10.8.2" # 2026-09-08 기준 최신 안정 버전
+    cmds:
+      - echo "현재 kubectl context:" && kubectl config current-context
+      - helm repo add argo https://argoproj.github.io/argo-helm
+      - helm repo update argo
+      - |
+        helm upgrade --install argocd argo/argo-cd \
+          --version {{.ARGOCD_CHART_VERSION}} \
+          --namespace argocd \
+          --create-namespace \
+          --wait
+
+  bootstrap:root-app:
+    desc: root-app.yaml apply — 여기서부터는 ArgoCD가 나머지(플랫폼 addon, 서비스)를 전부 cascade로 배포
     preconditions:
       - sh: kubectl get namespace argocd
-        msg: "argocd 네임스페이스가 없습니다. ArgoCD를 먼저 설치하세요."
+        msg: "argocd 네임스페이스가 없습니다. bootstrap:argocd를 먼저 실행하세요."
     cmds:
       - kubectl apply -f bootstrap/root-app.yaml
       - echo "root-app 적용 완료. 'kubectl get application -n argocd'로 자식 Application들이 생성되는지 확인하세요."
