@@ -1,0 +1,53 @@
+# CI 서버(Jenkins) — Kafka/Redis와 동일하게 Helm chart로 클러스터 안에 직접 배포한다.
+# 이 chart는 Kubernetes plugin이 기본 내장되어 있어서, 빌드마다 동적으로 agent Pod을
+# 띄우는 방식이 자연스럽다 (sever/Jenkinsfile의 agent 블록도 이에 맞춰 작성 예정).
+#
+# controller.installPlugins — sever CI 파이프라인에 필요한 최소 플러그인만 우선 지정.
+#   workflow-aggregator/git   : Declarative Pipeline 기본
+#   pipeline-utility-steps    : readJSON (detect-services.sh 결과 파싱용)
+#   kubernetes                : 동적 agent Pod 생성
+# 도커 이미지 빌드(K8s 안에서 docker build)는 별도 설계 필요 — Pod 안에 도커 데몬이
+# 없어서 kaniko/buildkit 등을 붙여야 함. 이번 범위에서는 Jenkins 서버 자체만 올린다.
+#
+# persistence — Jenkins는 상태(Job 설정, 빌드 이력, 플러그인)를 갖는 stateful 워크로드라
+# Redis(지금은 auth 끈 캐시 용도)와 달리 PVC가 필수.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jenkins
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: jenkins
+    repoURL: https://charts.jenkins.io
+    targetRevision: "5.9.56" # 2026-09-09 기준 최신 안정 버전 (appVersion 2.568.3)
+    helm:
+      releaseName: jenkins
+      values: |
+        controller:
+          installPlugins:
+            - workflow-aggregator
+            - git
+            - pipeline-utility-steps
+            - kubernetes
+          resources: {}
+        persistence:
+          enabled: true
+          size: 8Gi
+        agent:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jenkins
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
