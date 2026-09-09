@@ -1,6 +1,6 @@
 # 서비스용 ApplicationSet — values 레포의 values/{env}/services/* 디렉토리를 스캔해서
 # 폴더가 생기는 만큼 자동으로 서비스별 Application을 만들어냄.
-# 서비스 목록/이름이 아직 확정 전이라 values 레포 자체도 없는 상태 — repoURL은 TODO.
+# values 레포: https://github.com/urineun-jigeum-bildeujung/gitops-value (public, 2026-09-09 생성)
 #
 # goTemplate: true가 반드시 필요 — 이게 없으면 아래 {{.xxx}} 문법(점 표기)이 작동하지 않음.
 #
@@ -23,7 +23,7 @@ spec:
                 - env: dev
                 # - env: prod   # TODO: prod 환경 확정되면 추가
           - git:
-              repoURL: "" # TODO: values 레포 생성 후 URL 채우기
+              repoURL: https://github.com/urineun-jigeum-bildeujung/gitops-value.git
               revision: main
               directories:
                 - path: "values/{{.env}}/services/*"
@@ -46,7 +46,7 @@ spec:
           helm:
             valueFiles:
               - $values/{{.path}}/values.yaml
-        - repoURL: "" # TODO: values 레포와 동일 URL
+        - repoURL: https://github.com/urineun-jigeum-bildeujung/gitops-value.git
           targetRevision: main
           ref: values
       destination:
