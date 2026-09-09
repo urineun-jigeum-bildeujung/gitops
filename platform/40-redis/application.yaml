@@ -20,7 +20,9 @@ spec:
   source:
     chart: redis
     repoURL: https://charts.bitnami.com/bitnami
-    targetRevision: "28.0.15" # 2026-09-08 기준 최신 안정 버전
+    # 최신(28.0.15)은 Redis 8.10.1 — 백엔드 local-infra(docker-compose)가 Redis 7을 쓰고 있어서
+    # 메이저 버전을 맞추기 위해 Redis 7.x를 배포하는 20.13.4로 고정 (2026-09-09 확인).
+    targetRevision: "20.13.4"
     helm:
       releaseName: redis
       values: |
