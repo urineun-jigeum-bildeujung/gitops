@@ -45,7 +45,7 @@ spec:
           path: charts/generic-service
           helm:
             valueFiles:
-              - $values/{{.path}}/values.yaml
+              - $values/{{.path.path}}/values.yaml
         - repoURL: https://github.com/urineun-jigeum-bildeujung/gitops-value.git
           targetRevision: main
           ref: values
