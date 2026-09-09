@@ -1,16 +1,58 @@
-# 서비스 경계(백엔드/AI/타임딜 분리 여부)가 아직 확정 전이라 우선 공통 네임스페이스만 정의.
-# 확정되면 서비스/도메인 단위로 네임스페이스 추가 예정.
+# 서비스 경계 확정(sever 레포 services/ 기준 7개) — 서비스별 네임스페이스로 분리한다.
+# platform 애드온들(redis/jenkins/kafka 등)이 각자 자기 네임스페이스를 쓰는 관례와 일관되고,
+# 서비스마다 NetworkPolicy/RBAC/ResourceQuota를 독립적으로 걸 수 있음.
+#
+# 여기서 미리 만들어두는 이유: applications/appset.yaml도 destination.namespace를
+# 이 이름들로 맞춰서 CreateNamespace=true로 만들지만, 그건 sync-wave 10(가장 늦음)이라
+# 05-rbac(wave -8)가 이 네임스페이스를 참조하는 시점엔 아직 없을 수 있음. 여기서 wave -9로
+# 먼저 만들어두면 순서 문제가 사라짐 (appset.yaml의 CreateNamespace=true는 안전망으로 유지).
+#
+# platform/api-gateway(sever 레포)는 아직 values 레포에 연결 전이라 이번엔 제외 — 연결할 때 추가.
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: pet-subscription-system
+  name: auth-service
   labels:
-    kubernetes.io/metadata.name: pet-subscription-system
+    kubernetes.io/metadata.name: auth-service
 ---
-# TODO: 서비스 경계 확정 후 예)
-# apiVersion: v1
-# kind: Namespace
-# metadata:
-#   name: pet-subscription-timedeal
-#   labels:
-#     kubernetes.io/metadata.name: pet-subscription-timedeal
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: member-service
+  labels:
+    kubernetes.io/metadata.name: member-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: product-service
+  labels:
+    kubernetes.io/metadata.name: product-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: order-service
+  labels:
+    kubernetes.io/metadata.name: order-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payment-service
+  labels:
+    kubernetes.io/metadata.name: payment-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: review-service
+  labels:
+    kubernetes.io/metadata.name: review-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: notification-service
+  labels:
+    kubernetes.io/metadata.name: notification-service

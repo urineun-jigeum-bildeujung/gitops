@@ -51,6 +51,9 @@ spec:
           ref: values
       destination:
         server: https://kubernetes.default.svc
+        # platform/05-namespaces가 wave -9에서 이 이름들을 이미 만들어둠.
+        # CreateNamespace=true는 그래도 안전망으로 유지(여기서 이름이 틀리면 즉시 알아챌 수 있게
+        # 05-namespaces와 반드시 동일한 이름을 써야 함).
         namespace: "{{.path.basename}}"
       syncPolicy:
         automated:
