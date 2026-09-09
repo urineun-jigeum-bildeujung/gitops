@@ -22,25 +22,31 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform
-  source:
-    chart: jenkins
-    repoURL: https://charts.jenkins.io
-    targetRevision: "5.9.56" # 2026-09-09 기준 최신 안정 버전 (appVersion 2.568.3)
-    helm:
-      releaseName: jenkins
-      values: |
-        controller:
-          installPlugins:
-            - workflow-aggregator
-            - git
-            - pipeline-utility-steps
-            - kubernetes
-          resources: {}
-        persistence:
-          enabled: true
-          size: 8Gi
-        agent:
-          enabled: true
+  sources:
+    - chart: jenkins
+      repoURL: https://charts.jenkins.io
+      targetRevision: "5.9.56" # 2026-09-09 기준 최신 안정 버전 (appVersion 2.568.3)
+      helm:
+        releaseName: jenkins
+        values: |
+          controller:
+            installPlugins:
+              - workflow-aggregator
+              - git
+              - pipeline-utility-steps
+              - kubernetes
+            resources: {}
+          persistence:
+            enabled: true
+            size: 8Gi
+          agent:
+            enabled: true
+    # kaniko 빌드 Pod 전용 ServiceAccount — infra팀의 EKS Pod Identity association과
+    # 고정 계약(jenkins/jenkins-kaniko, infra 레포 docs/jenkins-kaniko-ecr.md 참고)이라
+    # 이 매니페스트는 chart 소스와 별도로 둔다.
+    - repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+      targetRevision: main
+      path: platform/40-jenkins/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: jenkins
