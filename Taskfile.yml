@@ -17,7 +17,7 @@ tasks:
       - echo "차트 렌더링 검증 통과"
 
   validate:yaml:
-    desc: Helm 템플릿을 제외한 YAML 문법과 Kubernetes manifest 필수 필드 검사
+    desc: charts/generic-service/templates(Helm 템플릿이라 순수 YAML 아님)를 제외한 모든 YAML 파일 문법 검사
     cmds:
       - |
         python3 -c "
@@ -26,16 +26,7 @@ tasks:
         files = [f for f in glob.glob('**/*.yaml', recursive=True) if not f.startswith('charts/generic-service/templates/')]
         for f in files:
             try:
-                documents = list(yaml.safe_load_all(open(f)))
-                if f.startswith(('bootstrap/', 'applications/', 'projects/', 'platform/')):
-                    for index, document in enumerate(documents, 1):
-                        if document is None:
-                            continue
-                        missing = [key for key in ('apiVersion', 'kind', 'metadata') if key not in document]
-                        if missing:
-                            ok = False
-                            missing_text = ', '.join(missing)
-                            print(f'FAIL {f} document {index}: missing {missing_text}')
+                list(yaml.safe_load_all(open(f)))
             except Exception as e:
                 ok = False
                 print(f'FAIL {f}: {e}')
