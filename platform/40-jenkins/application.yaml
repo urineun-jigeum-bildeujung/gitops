@@ -6,6 +6,10 @@
 #   workflow-aggregator/git   : Declarative Pipeline 기본
 #   pipeline-utility-steps    : readJSON (detect-services.sh 결과 파싱용)
 #   kubernetes                : 동적 agent Pod 생성
+#   configuration-as-code     : 차트 기본 목록엔 있는데, installPlugins를 통째로 덮어쓰면서
+#                               빠졌던 것 — 이게 없으면 차트가 만들어주는 JCasC(Kubernetes Cloud
+#                               설정 포함)를 Jenkins가 읽어서 적용하질 못해서 "No Kubernetes
+#                               cloud was found" 에러가 남 (2026-09-10 실제로 겪음)
 # 도커 이미지 빌드(K8s 안에서 docker build)는 별도 설계 필요 — Pod 안에 도커 데몬이
 # 없어서 kaniko/buildkit 등을 붙여야 함. 이번 범위에서는 Jenkins 서버 자체만 올린다.
 #
@@ -35,6 +39,7 @@ spec:
               - git
               - pipeline-utility-steps
               - kubernetes
+              - configuration-as-code
             resources: {}
           persistence:
             enabled: true
