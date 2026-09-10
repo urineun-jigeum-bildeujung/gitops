@@ -65,3 +65,9 @@ tasks:
     cmds:
       - kubectl apply -f bootstrap/root-app.yaml
       - echo "root-app 적용 완료. 'kubectl get application -n argocd'로 자식 Application들이 생성되는지 확인하세요."
+
+  jenkins:creds:
+    desc: Jenkins Helm chart가 생성한 admin 계정 ID/비번 조회 (UI 로그인용)
+    cmds:
+      - 'echo -n "ID: " && kubectl get secret -n jenkins jenkins -o jsonpath="{.data.jenkins-admin-user}" | base64 -d && echo'
+      - 'echo -n "PW: " && kubectl get secret -n jenkins jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 -d && echo'
