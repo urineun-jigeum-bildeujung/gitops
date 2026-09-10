@@ -42,6 +42,8 @@ aws eks update-kubeconfig --name petflow-eks --region ap-northeast-2
 task bootstrap
 ```
 
+Kafka 토픽(KafkaTopic)은 서비스/이벤트 목록이 아직 초안이라 미포함 — 확정되면
+`platform/50-kafka-cluster/manifests/`에 추가 예정.
 `task bootstrap`이 ArgoCD 설치부터 `root-app.yaml` apply까지 한 번에 처리한다 (`task bootstrap:argocd`,
 `task bootstrap:root-app`으로 개별 실행도 가능). DEV 환경은 destroy/apply를 반복하는 설계라, 재구축할
 때마다 이 명령 하나만 다시 실행하면 된다.

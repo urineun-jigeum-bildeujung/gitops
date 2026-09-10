@@ -18,6 +18,14 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: database
+  labels:
+    kubernetes.io/metadata.name: database
+    app.kubernetes.io/part-of: petflow-database
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: member-service
   labels:
     kubernetes.io/metadata.name: member-service

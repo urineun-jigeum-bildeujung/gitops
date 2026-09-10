@@ -1,0 +1,60 @@
+# DEV PostgreSQL HA cluster. CNPG가 instance별 data PVC를 자동 생성·관리한다.
+# Terraform의 cnpg_namespace/service_account_name/cnpg_backup_prefix와 이름을 함께 변경해야 한다.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: petflow-db-backups
+  namespace: database
+spec:
+  configuration:
+    destinationPath: s3://petflow-dev-db-backups/cnpg
+    s3Credentials:
+      # EKS Pod Identity가 제공하는 AWS SDK 기본 자격 증명 체인을 사용한다.
+      inheritFromIAMRole: true
+    wal:
+      compression: gzip
+  retentionPolicy: "30d"
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: petflow-db
+  namespace: database
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+
+  # CNPG가 petflow-db-1, petflow-db-2 data PVC를 생성한다.
+  # storageClass는 EKS EBS CSI Driver의 기본 StorageClass를 사용한다.
+  storage:
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: petflow-db-backups
+---
+# 매일 03:00 KST (18:00 UTC)에 base backup을 생성한다.
+# CNPG ScheduledBackup cron은 초를 포함하는 6-field 형식이다.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: petflow-db-daily
+  namespace: database
+spec:
+  schedule: "0 0 18 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: petflow-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
