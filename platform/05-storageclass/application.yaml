@@ -1,10 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: rbac
+  name: storageclass
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "-8" # namespaces(-9)가 먼저 확실히 뜬 뒤 실행되도록 한 단계 뒤로
+    argocd.argoproj.io/sync-wave: "-9"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
     targetRevision: main
-    path: platform/05-rbac/manifests
+    path: platform/05-storageclass/manifests
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
