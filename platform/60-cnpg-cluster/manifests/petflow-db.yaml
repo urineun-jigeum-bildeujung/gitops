@@ -8,6 +8,9 @@ metadata:
 spec:
   configuration:
     destinationPath: s3://petflow-dev-db-backups/cnpg
+    s3Credentials:
+      # PostgreSQL Pod ServiceAccount에 연결된 EKS IRSA Role을 사용한다.
+      inheritFromIAMRole: true
     wal:
       compression: gzip
   retentionPolicy: "30d"
