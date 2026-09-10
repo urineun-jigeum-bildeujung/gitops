@@ -9,7 +9,7 @@ spec:
   configuration:
     destinationPath: s3://petflow-dev-db-backups/cnpg
     s3Credentials:
-      # PostgreSQL Pod ServiceAccount에 연결된 EKS IRSA Role을 사용한다.
+      # EKS Pod Identity가 제공하는 AWS SDK 기본 자격 증명 체인을 사용한다.
       inheritFromIAMRole: true
     wal:
       compression: gzip
@@ -36,12 +36,6 @@ spec:
     limits:
       cpu: "1"
       memory: 2Gi
-
-  serviceAccountTemplate:
-    metadata:
-      annotations:
-        # infra Terraform output cnpg_backup_role_arn과 일치해야 한다.
-        eks.amazonaws.com/role-arn: arn:aws:iam::297165773875:role/petflow-dev-cnpg-backup
 
   plugins:
     - name: barman-cloud.cloudnative-pg.io
