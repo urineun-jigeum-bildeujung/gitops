@@ -41,6 +41,19 @@ spec:
               - kubernetes
               - configuration-as-code
             resources: {}
+            # admin 계정 Secret을 차트가 직접 만들게 두면(기본값, existingSecret 미지정) ArgoCD가
+            # helm template을 오프라인 렌더링하는 특성상 lookup 함수가 항상 "없음"으로 평가돼서
+            # 매 sync마다 비번이 새 랜덤값으로 바뀜 — 실제 Jenkins는 마지막 pod 부팅 시점 비번을
+            # 그대로 쓰고 있어서 시크릿 조회값과 실제 로그인값이 어긋나는 사고로 이어짐(2026-09-11
+            # 실제로 겪음). existingSecret만 지정하면 secret.yaml 템플릿(자체 Secret 생성)은
+            # 자동으로 스킵되므로 createSecret은 반드시 true(기본값) 유지 — false로 두면
+            # admin 계정용 Secret 볼륨 마운트 로직 자체가 통째로 빠져서 Jenkins 부팅이 실패한다
+            # (StatefulSet 템플릿에서 createSecret이 그 마운트 블록 전체의 게이트라서, 2026-09-11
+            # helm template로 직접 렌더링해서 실제로 확인함). gitops Taskfile의
+            # bootstrap:jenkins-admin-secret이 별도로 관리하는 Secret을 이 이름으로 참조한다.
+            admin:
+              createSecret: true
+              existingSecret: jenkins-admin-credentials
           persistence:
             enabled: true
             size: 8Gi
