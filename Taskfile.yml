@@ -41,6 +41,7 @@ tasks:
     cmds:
       - task: bootstrap:argocd
       - task: bootstrap:jenkins-admin-secret
+      - task: bootstrap:jenkins-git-credentials
       - task: bootstrap:root-app
 
   bootstrap:argocd:
@@ -76,6 +77,29 @@ tasks:
             --from-literal=jenkins-admin-user=admin \
             --from-literal=jenkins-admin-password="$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)"
           echo "jenkins-admin-credentials 새로 생성함 — 'task jenkins:creds'로 조회 가능"
+        fi
+
+  # sever/Jenkinsfile의 Update GitOps 스테이지가 쓰는 gitops-value push용 credential
+  # (Jenkins credential id: gitops-value-push). Jenkins Job(멀티브랜치 파이프라인)과 마찬가지로
+  # 예전엔 UI에서 수동 등록했는데, 클러스터를 새로 만들 때마다 PVC가 새 걸로 바뀌면서 매번
+  # 같이 사라짐(2026-09-11 실제로 겪음). gh CLI로 로그인된 계정의 토큰을 그대로 재사용해서
+  # k8s Secret으로 만들어두고, JCasC(jobs/credentials 섹션, platform/40-jenkins)가 Jenkins
+  # 부팅마다 이 Secret으로 credential을 자동 등록하게 만들어서 다시는 손으로 안 만들어도 됨.
+  bootstrap:jenkins-git-credentials:
+    desc: gitops-value push용 GitHub credential Secret 생성 (없을 때만, gh CLI 로그인 필요)
+    preconditions:
+      - sh: gh auth status
+        msg: "gh CLI 로그인이 안 되어 있습니다. 'gh auth login'을 먼저 실행하세요."
+    cmds:
+      - kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        if kubectl get secret jenkins-git-credentials -n jenkins >/dev/null 2>&1; then
+          echo "jenkins-git-credentials 이미 존재 — 기존 값 유지"
+        else
+          kubectl create secret generic jenkins-git-credentials -n jenkins \
+            --from-literal=git-username="$(gh api user --jq .login)" \
+            --from-literal=git-token="$(gh auth token)"
+          echo "jenkins-git-credentials 새로 생성함"
         fi
 
   bootstrap:root-app:

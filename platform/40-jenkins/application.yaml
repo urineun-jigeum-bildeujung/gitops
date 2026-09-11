@@ -40,7 +40,16 @@ spec:
               - pipeline-utility-steps
               - kubernetes
               - configuration-as-code
+              - job-dsl # JCasC의 jobs: 섹션(아래)이 이 플러그인으로 동작함
             resources: {}
+            # gitops-value push용 credential(git-username/git-token)을 JCasC.configScripts.credentials가
+            # ${git-username}/${git-token}으로 읽어갈 수 있게 파일로 마운트. 값 자체는
+            # gitops Taskfile의 bootstrap:jenkins-git-credentials가 별도로 만들어둔 Secret.
+            additionalExistingSecrets:
+              - name: jenkins-git-credentials
+                keyName: git-username
+              - name: jenkins-git-credentials
+                keyName: git-token
             # admin 계정 Secret을 차트가 직접 만들게 두면(기본값, existingSecret 미지정) ArgoCD가
             # helm template을 오프라인 렌더링하는 특성상 lookup 함수가 항상 "없음"으로 평가돼서
             # 매 sync마다 비번이 새 랜덤값으로 바뀜 — 실제 Jenkins는 마지막 pod 부팅 시점 비번을
@@ -54,6 +63,54 @@ spec:
             admin:
               createSecret: true
               existingSecret: jenkins-admin-credentials
+            # sever/Jenkinsfile이 기대하는 멀티브랜치 파이프라인 Job과 gitops-value push
+            # credential을 UI로 수동 등록해뒀었는데, Job 설정은 PVC에만 있어서 클러스터를
+            # 새로 만들 때마다(=새 PVC) 통째로 사라지는 문제가 있었음(2026-09-11 실제로 겪음).
+            # JCasC로 코드화해두면 Jenkins가 부팅할 때마다(PVC가 새것이든 아니든) 자동으로
+            # 다시 만들어져서 더 이상 손으로 재설정할 필요가 없음.
+            JCasC:
+              configScripts:
+                credentials: |
+                  credentials:
+                    system:
+                      domainCredentials:
+                        - credentials:
+                            - usernamePassword:
+                                scope: GLOBAL
+                                id: "gitops-value-push"
+                                username: "${jenkins-git-credentials-git-username}"
+                                password: "${jenkins-git-credentials-git-token}"
+                                description: "gitops-value push (JCasC 자동 등록)"
+                jobs: |
+                  jobs:
+                    - script: >
+                        multibranchPipelineJob('sever-ci') {
+                          branchSources {
+                            branchSource {
+                              source {
+                                git {
+                                  id('sever-repo')
+                                  remote('https://github.com/urineun-jigeum-bildeujung/sever.git')
+                                }
+                              }
+                            }
+                          }
+                          factory {
+                            workflowBranchProjectFactory {
+                              scriptPath('Jenkinsfile')
+                            }
+                          }
+                          triggers {
+                            periodicFolderTrigger {
+                              interval('5m')
+                            }
+                          }
+                          orphanedItemStrategy {
+                            discardOldItems {
+                              numToKeep(20)
+                            }
+                          }
+                        }
           persistence:
             enabled: true
             size: 8Gi
