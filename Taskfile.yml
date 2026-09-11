@@ -40,6 +40,7 @@ tasks:
     desc: 최초 부트스트랩 — ArgoCD 설치까지 포함해서 한 번에 (재구축 후에도 이 하나로 충분)
     cmds:
       - task: bootstrap:argocd
+      - task: bootstrap:jenkins-admin-secret
       - task: bootstrap:root-app
 
   bootstrap:argocd:
@@ -57,6 +58,27 @@ tasks:
           --create-namespace \
           --wait
 
+  bootstrap:jenkins-admin-secret:
+    desc: >
+      Jenkins admin 계정 Secret을 Helm 차트가 아니라 여기서 직접 생성 — ArgoCD는 helm template을
+      오프라인으로 렌더링해서 lookup 함수가 항상 "없음"으로 평가되고, 그 결과 차트가 매 sync마다
+      admin 비번을 새 랜덤값으로 재생성해버림(실제 Jenkins는 마지막 pod 부팅 시점 비번을 그대로
+      쓰고 있어서 시크릿 조회값과 실제 로그인값이 어긋나는 사고로 이어짐, 2026-09-11 실제로 겪음).
+      이미 있으면 값을 유지(idempotent)하고, 처음(또는 클러스터 재구축 후)이면 새로 생성 —
+      Jenkins Application(platform/40-jenkins)이 이 Secret을 controller.admin.existingSecret으로
+      참조하도록 값을 맞춰서 Helm이 자체 admin Secret을 만들지 않게 해야 함.
+    cmds:
+      - kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
+      - |
+        if kubectl get secret jenkins-admin-credentials -n jenkins >/dev/null 2>&1; then
+          echo "jenkins-admin-credentials 이미 존재 — 기존 값 유지"
+        else
+          kubectl create secret generic jenkins-admin-credentials -n jenkins \
+            --from-literal=jenkins-admin-user=admin \
+            --from-literal=jenkins-admin-password="$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)"
+          echo "jenkins-admin-credentials 새로 생성함 — 'task jenkins:creds'로 조회 가능"
+        fi
+
   bootstrap:root-app:
     desc: root-app.yaml apply — 여기서부터는 ArgoCD가 나머지(플랫폼 addon, 서비스)를 전부 cascade로 배포
     preconditions:
@@ -67,7 +89,7 @@ tasks:
       - echo "root-app 적용 완료. 'kubectl get application -n argocd'로 자식 Application들이 생성되는지 확인하세요."
 
   jenkins:creds:
-    desc: Jenkins Helm chart가 생성한 admin 계정 ID/비번 조회 (UI 로그인용)
+    desc: Jenkins admin 계정 ID/비번 조회 (UI 로그인용) — bootstrap:jenkins-admin-secret이 만든 Secret 기준
     cmds:
-      - 'echo -n "ID: " && kubectl get secret -n jenkins jenkins -o jsonpath="{.data.jenkins-admin-user}" | base64 -d && echo'
-      - 'echo -n "PW: " && kubectl get secret -n jenkins jenkins -o jsonpath="{.data.jenkins-admin-password}" | base64 -d && echo'
+      - 'echo -n "ID: " && kubectl get secret -n jenkins jenkins-admin-credentials -o jsonpath="{.data.jenkins-admin-user}" | base64 -d && echo'
+      - 'echo -n "PW: " && kubectl get secret -n jenkins jenkins-admin-credentials -o jsonpath="{.data.jenkins-admin-password}" | base64 -d && echo'
