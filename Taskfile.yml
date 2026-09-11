@@ -58,15 +58,14 @@ tasks:
           --create-namespace \
           --wait
 
+  # ArgoCD는 helm template을 오프라인 렌더링해서 lookup 함수가 항상 "없음"으로 평가되고,
+  # 그 결과 Jenkins 차트가 매 sync마다 admin 비번을 새 랜덤값으로 재생성해버림 — 실제
+  # Jenkins는 마지막 pod 부팅 시점 비번을 그대로 쓰고 있어서 시크릿 조회값과 실제
+  # 로그인값이 어긋나는 사고로 이어짐(2026-09-11 실제로 겪음). 그래서 admin 계정 Secret을
+  # Helm 밖에서 여기서 직접 관리(최초 1회만 생성, 이후 idempotent)하고, Jenkins
+  # Application(platform/40-jenkins)이 controller.admin.existingSecret으로 이 이름을 참조함.
   bootstrap:jenkins-admin-secret:
-    desc: >
-      Jenkins admin 계정 Secret을 Helm 차트가 아니라 여기서 직접 생성 — ArgoCD는 helm template을
-      오프라인으로 렌더링해서 lookup 함수가 항상 "없음"으로 평가되고, 그 결과 차트가 매 sync마다
-      admin 비번을 새 랜덤값으로 재생성해버림(실제 Jenkins는 마지막 pod 부팅 시점 비번을 그대로
-      쓰고 있어서 시크릿 조회값과 실제 로그인값이 어긋나는 사고로 이어짐, 2026-09-11 실제로 겪음).
-      이미 있으면 값을 유지(idempotent)하고, 처음(또는 클러스터 재구축 후)이면 새로 생성 —
-      Jenkins Application(platform/40-jenkins)이 이 Secret을 controller.admin.existingSecret으로
-      참조하도록 값을 맞춰서 Helm이 자체 admin Secret을 만들지 않게 해야 함.
+    desc: Jenkins admin 계정 Secret 생성 (없을 때만, ArgoCD sync에 흔들리지 않는 고정값)
     cmds:
       - kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
       - |
