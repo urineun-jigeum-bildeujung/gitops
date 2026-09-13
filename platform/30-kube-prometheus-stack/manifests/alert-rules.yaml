@@ -1,0 +1,113 @@
+# Golden Signals + 인프라 기본 알림 규칙 8개.
+# release: kube-prometheus-stack 라벨 — ServiceMonitor와 마찬가지로 Prometheus Operator의
+# ruleSelector가 release 라벨 기준으로 PrometheusRule을 고르는 게 기본 동작이라, 이 라벨이
+# 없으면 Prometheus가 이 규칙들을 아예 안 읽어감.
+#
+# runbook_url 어노테이션은 docs/runbooks/의 대응 문서를 가리킴 — 알림이 울렸을 때
+# Alertmanager/Discord 메시지에 이 URL이 그대로 실려서 바로 대응 문서로 이동 가능하게 함.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: petflow-golden-signals
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: petflow.golden-signals
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_server_requests_seconds_count{service=~".+", status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_server_requests_seconds_count{service=~".+"}[5m])) by (service)
+            > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} 5xx 에러율 5% 초과"
+            description: "{{ $labels.service }}의 최근 5분간 5xx 에러율이 {{ $value | humanizePercentage }}입니다."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/high-error-rate.md"
+
+        - alert: HighLatencyP99
+          expr: |
+            histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service=~".+"}[5m])) by (le, service))
+            > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.service }} p99 지연시간 1초 초과"
+            description: "{{ $labels.service }}의 p99 응답시간이 {{ $value | humanizeDuration }}입니다."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/high-latency-p99.md"
+
+        - alert: ServiceDown
+          expr: up{service=~".+"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} 다운"
+            description: "{{ $labels.service }}가 2분 이상 Prometheus 스크레이프에 응답하지 않습니다."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/service-down.md"
+
+        - alert: PodCrashLooping
+          expr: |
+            sum(increase(kube_pod_container_status_restarts_total{namespace=~".+-service"}[15m])) by (namespace, pod) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} 반복 재시작"
+            description: "최근 15분간 {{ $value }}회 재시작했습니다 (CrashLoopBackOff 의심)."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/pod-crash-looping.md"
+
+        - alert: PodNotReady
+          expr: |
+            sum(kube_pod_status_ready{namespace=~".+-service", condition="false"}) by (namespace, pod) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} Not Ready 지속"
+            description: "5분 이상 Ready 상태가 아닙니다."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/pod-not-ready.md"
+
+        - alert: HighMemoryUsage
+          expr: |
+            sum(container_memory_working_set_bytes{namespace=~".+-service", container!="", container!="POD"}) by (namespace, pod)
+            /
+            sum(kube_pod_container_resource_limits{namespace=~".+-service", resource="memory"}) by (namespace, pod)
+            > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} 메모리 사용률 90% 초과"
+            description: "메모리 limit 대비 사용률이 {{ $value | humanizePercentage }}입니다. OOMKilled 위험."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/high-memory-usage.md"
+
+        - alert: HighCPUUsage
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{namespace=~".+-service", container!="", container!="POD"}[5m])) by (namespace, pod)
+            /
+            sum(kube_pod_container_resource_limits{namespace=~".+-service", resource="cpu"}) by (namespace, pod)
+            > 0.9
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} CPU 사용률 90% 초과"
+            description: "CPU limit 대비 사용률이 {{ $value | humanizePercentage }}로 10분 이상 지속됩니다. Throttling 위험."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/high-cpu-usage.md"
+
+        - alert: HikariCPConnectionPoolExhausted
+          expr: |
+            hikaricp_connections_active{service=~".+"} >= hikaricp_connections_max{service=~".+"}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} DB 커넥션 풀 고갈"
+            description: "{{ $labels.service }}의 HikariCP 활성 커넥션이 5분 이상 최대치에 도달해 있습니다."
+            runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/hikaricp-pool-exhausted.md"

@@ -9,18 +9,24 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform
-  source:
-    chart: kube-prometheus-stack
-    repoURL: https://prometheus-community.github.io/helm-charts
-    targetRevision: "90.0.0" # 2026-09-08 기준 최신 안정 버전
-    helm:
-      releaseName: kube-prometheus-stack
-      values: |
-        grafana:
-          enabled: true
-        alertmanager:
-          config:
-            receivers: [] # TODO: 00번 문서 기준 Discord webhook 연동
+  sources:
+    - chart: kube-prometheus-stack
+      repoURL: https://prometheus-community.github.io/helm-charts
+      targetRevision: "90.0.0" # 2026-09-08 기준 최신 안정 버전
+      helm:
+        releaseName: kube-prometheus-stack
+        values: |
+          grafana:
+            enabled: true
+          alertmanager:
+            config:
+              receivers: [] # TODO: 00번 문서 기준 Discord webhook 연동
+    # Golden Signals/JVM/에러 대시보드(ConfigMap, grafana sidecar가 자동 로드)와
+    # 알림 규칙(PrometheusRule)은 차트 values로 넣기엔 너무 커서 별도 소스로 분리.
+    # Jenkins Application(platform/40-jenkins)의 kaniko ServiceAccount와 같은 패턴.
+    - repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+      targetRevision: main
+      path: platform/30-kube-prometheus-stack/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

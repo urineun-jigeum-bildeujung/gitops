@@ -10,6 +10,10 @@
 #                               빠졌던 것 — 이게 없으면 차트가 만들어주는 JCasC(Kubernetes Cloud
 #                               설정 포함)를 Jenkins가 읽어서 적용하질 못해서 "No Kubernetes
 #                               cloud was found" 에러가 남 (2026-09-10 실제로 겪음)
+#   github-branch-source      : 기존 git 소스는 브랜치만 봐서 PR(refs/pull/*)을 아예 인식 못 함
+#                               (2026-09-11 발견 — sever/Jenkinsfile은 env.CHANGE_ID 기반 PR
+#                               분기가 이미 있는데 이게 계속 안 채워지고 있었음). github 소스로
+#                               바꿔야 GitHub API로 PR을 조회해서 그 변수들을 채워줌.
 # 도커 이미지 빌드(K8s 안에서 docker build)는 별도 설계 필요 — Pod 안에 도커 데몬이
 # 없어서 kaniko/buildkit 등을 붙여야 함. 이번 범위에서는 Jenkins 서버 자체만 올린다.
 #
@@ -41,6 +45,7 @@ spec:
               - kubernetes
               - configuration-as-code
               - job-dsl # JCasC의 jobs: 섹션(아래)이 이 플러그인으로 동작함
+              - github-branch-source # PR 인식(env.CHANGE_ID/CHANGE_TARGET)에 필요, 아래 jobs: 참고
             resources: {}
             # gitops-value push용 credential(git-username/git-token)을 JCasC.configScripts.credentials가
             # ${git-username}/${git-token}으로 읽어갈 수 있게 파일로 마운트. 값 자체는
@@ -70,6 +75,9 @@ spec:
             # 다시 만들어져서 더 이상 손으로 재설정할 필요가 없음.
             JCasC:
               configScripts:
+                # 같은 credential(gitops-value-push)을 sever-ci Job의 github 소스가 GitHub API로
+                # 브랜치/PR을 조회할 때도 그대로 재사용함 — 둘 다 결국 같은 GitHub 계정 PAT라
+                # 별도 credential을 새로 만들 이유가 없음(repo 읽기 권한만 있으면 충분).
                 credentials: |
                   credentials:
                     system:
@@ -80,7 +88,7 @@ spec:
                                 id: "gitops-value-push"
                                 username: "${jenkins-git-credentials-git-username}"
                                 password: "${jenkins-git-credentials-git-token}"
-                                description: "gitops-value push (JCasC 자동 등록)"
+                                description: "gitops-value push + sever repo API 조회 겸용 (JCasC 자동 등록)"
                 jobs: |
                   jobs:
                     - script: >
@@ -88,9 +96,24 @@ spec:
                           branchSources {
                             branchSource {
                               source {
-                                git {
+                                github {
                                   id('sever-repo')
-                                  remote('https://github.com/urineun-jigeum-bildeujung/sever.git')
+                                  repoOwner('urineun-jigeum-bildeujung')
+                                  repository('sever')
+                                  credentialsId('gitops-value-push')
+                                  traits {
+                                    gitHubBranchDiscovery {
+                                      strategyId(3) // 모든 브랜치
+                                    }
+                                    gitHubPullRequestDiscovery {
+                                      strategyId(2) // PR head 커밋 그대로(merge 안 함) — Jenkinsfile의 merge-base 계산과 맞물려야 해서
+                                    }
+                                    // gitHubForkDiscovery 트레잇을 일부러 안 넣음 — fork에서 온 PR은
+                                    // 아예 탐지 안 함. kaniko 파드가 ECR push 권한(Pod Identity)을
+                                    // 갖고 있어서, 외부인이 fork PR의 Jenkinsfile을 조작해 악용할
+                                    // 여지를 원천 차단. 내부 팀 레포라 fork 기여를 받을 일도 없음
+                                    // (2026-09-11).
+                                  }
                                 }
                               }
                             }
