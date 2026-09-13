@@ -98,12 +98,19 @@ spec:
                               source {
                                 github {
                                   id('sever-repo')
-                                  // Job DSL의 github{} 컨텍스트는 repoOwner+repository가 아니라
-                                  // repositoryUrl을 실제 필수값으로 요구함(2026-09-13 클러스터
-                                  // 재기동 후 실제로 겪음 — 처음엔 configuredByUrl(false)만 추가했다가
-                                  // "repositoryUrl 필요"로 에러가 바뀌는 걸 보고 확인). repoOwner+
-                                  // repository 조합은 이 버전에서 안 먹혀서 repositoryUrl로 교체.
+                                  // GitHubSCMSource의 @DataBoundConstructor가
+                                  // (repoOwner, repository, repositoryUrl, configuredByUrl) 4개를
+                                  // 전부 위치 인자로 받아서, Job DSL 동적 DSL 바인딩이 이 4개를
+                                  // 전부 필수로 요구함(2026-09-13 실제로 겪음 — 일부만 넣으면
+                                  // 나머지가 계속 "필요하다"고 나옴, github-branch-source-plugin
+                                  // 소스 확인 후 확정). configuredByUrl(false)라 repositoryUrl 값
+                                  // 자체는 실제로는 안 쓰이고 무시되지만(플러그인 내부 로직상
+                                  // repoOwner/repository 경로를 탐), 생성자 인자라 어쨌든 값을
+                                  // 줘야 해서 실제 저장소 URL을 그대로 넣어둠.
+                                  repoOwner('urineun-jigeum-bildeujung')
+                                  repository('sever')
                                   repositoryUrl('https://github.com/urineun-jigeum-bildeujung/sever')
+                                  configuredByUrl(false)
                                   credentialsId('gitops-value-push')
                                   traits {
                                     gitHubBranchDiscovery {
