@@ -16,7 +16,40 @@ spec:
     helm:
       releaseName: loki
       values: |
-        resources: {}
+        # 차트 기본값(deploymentMode: SimpleScalable)은 S3 등 오브젝트 스토리지가
+        # 필수라서 loki.storage.bucketNames.chunks 없이는 템플릿 렌더링 자체가 실패함
+        # (2026-09-13 클러스터 재기동 후 처음 sync하다가 발견 — 이 값이 원래부터
+        # "resources: {}"만 있던 빈 설정이라 한 번도 제대로 뜬 적이 없었던 것으로 보임).
+        # DEV는 로그 볼륨이 작아서 SingleBinary + 로컬 디스크(filesystem) 조합으로 충분함.
+        deploymentMode: SingleBinary
+        loki:
+          auth_enabled: false
+          commonConfig:
+            replication_factor: 1
+          storage:
+            type: filesystem
+          # 실제 운영급 schema_config을 손으로 안 짜도, useTestSchema가 위 storage.type에
+          # 맞는 스키마(TSDB + filesystem)를 자동으로 채워줌 — 차트 자체가 "테스트/DEV용"이라고
+          # 명시한 옵션이라 우리 용도에 정확히 맞음.
+          useTestSchema: true
+        singleBinary:
+          replicas: 1
+        # 차트가 deploymentMode와 무관하게 read/write/backend(SimpleScalable용) 기본
+        # replicas를 1로 잡아둬서, SingleBinary와 동시에 켜진 것으로 인식돼 검증 단계에서
+        # 막힘("more than zero replicas configured for both ...") — 명시적으로 0으로 꺼야 함.
+        write:
+          replicas: 0
+        read:
+          replicas: 0
+        backend:
+          replicas: 0
+        # memcached 기반 캐시(chunks/results)는 기본 활성화라 파드가 2개 더 뜨는데, DEV
+        # 노드 자원이 넉넉하지 않고(m7i-flex.large 3대) 로그량도 적어 캐시 이득이 크지
+        # 않으므로 꺼서 자원을 아낌.
+        chunksCache:
+          enabled: false
+        resultsCache:
+          enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
