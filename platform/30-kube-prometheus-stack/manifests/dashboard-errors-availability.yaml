@@ -1,0 +1,100 @@
+# 에러/가용성 대시보드 — "지금 뭐가 죽어있거나 자꾸 죽는가"에 집중.
+# up 메트릭에도 service 라벨이 붙는 이유: servicemonitor.yaml의 relabelings가
+# target(스크레이프 대상) 레벨에 라벨을 붙이는 거라, 그 타겟에서 나오는 모든
+# 메트릭(up 포함)에 공통으로 적용됨.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-errors-availability
+  labels:
+    grafana_dashboard: "1"
+data:
+  errors-availability.json: |
+    {
+      "title": "에러 / 가용성",
+      "uid": "petflow-errors-availability",
+      "tags": ["petflow", "errors"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0
+          },
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "$datasource" },
+            "query": "label_values(up{service=~\".+\"}, service)",
+            "refresh": 2,
+            "multi": true,
+            "includeAll": true,
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "panels": [
+        { "type": "row", "title": "가용성", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+        {
+          "type": "state-timeline",
+          "title": "서비스 up/down",
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } }
+          ] }, "overrides": [] },
+          "targets": [
+            { "expr": "up{service=~\"$service\"}", "legendFormat": "{{service}}" }
+          ]
+        },
+        { "type": "row", "title": "에러 상세", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 } },
+        {
+          "type": "timeseries",
+          "title": "URI별 5xx 발생 건수",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(increase(http_server_requests_seconds_count{service=~\"$service\", status=~\"5..\"}[5m])) by (service, uri, status)",
+              "legendFormat": "{{service}} {{uri}} ({{status}})"
+            }
+          ]
+        },
+        { "type": "row", "title": "파드 안정성", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 } },
+        {
+          "type": "timeseries",
+          "title": "파드 재시작 횟수 (1시간 누적)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$service\"}[1h])) by (namespace, pod)",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Ready 아닌 파드 수",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(kube_pod_status_ready{namespace=~\"$service\", condition=\"false\"}) by (namespace)",
+              "legendFormat": "{{namespace}}"
+            }
+          ]
+        }
+      ]
+    }

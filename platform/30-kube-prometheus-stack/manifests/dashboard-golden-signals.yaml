@@ -1,0 +1,126 @@
+# Golden Signals(트래픽/에러/지연시간/포화도) 대시보드.
+# kube-prometheus-stack의 grafana sidecar가 grafana_dashboard=1 라벨 붙은 ConfigMap을
+# observability 네임스페이스(그라파나와 같은 네임스페이스)에서 자동으로 찾아 로드함
+# (차트 기본값 그대로 사용 — 별도 sidecar 설정 불필요).
+#
+# $service 변수는 http_server_requests_seconds_count의 service 라벨에서 값을 가져옴
+# — 이 라벨은 charts/generic-service/templates/servicemonitor.yaml의 relabelings가
+# Service 이름을 붙여준 것(k8s 기본 라벨엔 없어서 명시적으로 추가한 값).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-golden-signals
+  labels:
+    grafana_dashboard: "1"
+data:
+  golden-signals.json: |
+    {
+      "title": "서비스 Golden Signals",
+      "uid": "petflow-golden-signals",
+      "tags": ["petflow", "golden-signals"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0
+          },
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "$datasource" },
+            "query": "label_values(http_server_requests_seconds_count, service)",
+            "refresh": 2,
+            "multi": true,
+            "includeAll": true,
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "panels": [
+        { "type": "row", "title": "트래픽 (Traffic)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+        {
+          "type": "timeseries",
+          "title": "초당 요청 수 (RPS)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{service=~\"$service\"}[5m])) by (service, uri, method)",
+              "legendFormat": "{{service}} {{method}} {{uri}}"
+            }
+          ]
+        },
+        { "type": "row", "title": "에러율 (Errors)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+        {
+          "type": "timeseries",
+          "title": "5xx 에러율 (%)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(rate(http_server_requests_seconds_count{service=~\"$service\", status=~\"5..\"}[5m])) by (service) / sum(rate(http_server_requests_seconds_count{service=~\"$service\"}[5m])) by (service) * 100",
+              "legendFormat": "{{service}}"
+            }
+          ]
+        },
+        { "type": "row", "title": "지연시간 (Latency)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 } },
+        {
+          "type": "timeseries",
+          "title": "p50 / p95 / p99 지연시간",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service))",
+              "legendFormat": "p50 {{service}}"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service))",
+              "legendFormat": "p95 {{service}}"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])) by (le, service))",
+              "legendFormat": "p99 {{service}}"
+            }
+          ]
+        },
+        { "type": "row", "title": "포화도 (Saturation)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 } },
+        {
+          "type": "timeseries",
+          "title": "CPU 사용률 (limit 대비 %)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$service\", container!=\"\", container!=\"POD\"}[5m])) by (namespace, pod) / sum(kube_pod_container_resource_limits{namespace=~\"$service\", resource=\"cpu\"}) by (namespace, pod) * 100",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "메모리 사용률 (limit 대비 %)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=~\"$service\", container!=\"\", container!=\"POD\"}) by (namespace, pod) / sum(kube_pod_container_resource_limits{namespace=~\"$service\", resource=\"memory\"}) by (namespace, pod) * 100",
+              "legendFormat": "{{namespace}}/{{pod}}"
+            }
+          ]
+        }
+      ]
+    }

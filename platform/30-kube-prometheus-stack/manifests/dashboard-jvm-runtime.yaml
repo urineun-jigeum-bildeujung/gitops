@@ -1,0 +1,122 @@
+# JVM/런타임 대시보드 — Golden Signals 대시보드가 "요청 단위" 신호라면,
+# 이건 그 요청을 처리하는 JVM 프로세스 내부(힙, GC, 스레드, DB 커넥션풀) 상태.
+# hikaricp_* 메트릭은 spring-boot-starter-data-jpa(HikariCP 기본 포함)를 쓰는
+# 서비스에서만 나옴 — 7개 서비스 전부 datasource 설정이 있어서 다 나와야 정상.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-jvm-runtime
+  labels:
+    grafana_dashboard: "1"
+data:
+  jvm-runtime.json: |
+    {
+      "title": "JVM / 런타임",
+      "uid": "petflow-jvm-runtime",
+      "tags": ["petflow", "jvm"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0
+          },
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "$datasource" },
+            "query": "label_values(jvm_memory_used_bytes, service)",
+            "refresh": 2,
+            "multi": true,
+            "includeAll": true,
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "panels": [
+        { "type": "row", "title": "힙 메모리", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+        {
+          "type": "timeseries",
+          "title": "힙 사용량 vs 최대치",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(jvm_memory_used_bytes{area=\"heap\", service=~\"$service\"}) by (service)",
+              "legendFormat": "{{service}} 사용중"
+            },
+            {
+              "expr": "sum(jvm_memory_max_bytes{area=\"heap\", service=~\"$service\"}) by (service)",
+              "legendFormat": "{{service}} 최대치"
+            }
+          ]
+        },
+        { "type": "row", "title": "가비지 컬렉션", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+        {
+          "type": "timeseries",
+          "title": "GC 정지 시간 (초/초)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "sum(rate(jvm_gc_pause_seconds_sum{service=~\"$service\"}[5m])) by (service, action)",
+              "legendFormat": "{{service}} {{action}}"
+            }
+          ]
+        },
+        { "type": "row", "title": "스레드 / CPU", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 } },
+        {
+          "type": "timeseries",
+          "title": "라이브 스레드 수",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "jvm_threads_live_threads{service=~\"$service\"}",
+              "legendFormat": "{{service}}"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "프로세스 CPU 사용률",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "process_cpu_usage{service=~\"$service\"}",
+              "legendFormat": "{{service}}"
+            }
+          ]
+        },
+        { "type": "row", "title": "DB 커넥션 풀 (HikariCP)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 } },
+        {
+          "type": "timeseries",
+          "title": "활성 커넥션 vs 최대치",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            {
+              "expr": "hikaricp_connections_active{service=~\"$service\"}",
+              "legendFormat": "{{service}} 활성"
+            },
+            {
+              "expr": "hikaricp_connections_max{service=~\"$service\"}",
+              "legendFormat": "{{service}} 최대"
+            }
+          ]
+        }
+      ]
+    }
