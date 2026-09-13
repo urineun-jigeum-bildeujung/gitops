@@ -98,15 +98,12 @@ spec:
                               source {
                                 github {
                                   id('sever-repo')
-                                  repoOwner('urineun-jigeum-bildeujung')
-                                  repository('sever')
-                                  // Job DSL의 github{} 컨텍스트는 repositoryUrl 한 방으로 지정하는 방식과
-                                  // repoOwner+repository로 나눠 지정하는 방식 중 하나를 강제로 선택하게
-                                  // 되어있어서, repositoryUrl을 안 쓸 거면 configuredByUrl(false)를 명시
-                                  // 안 하면 부트 자체가 실패함(CasC가 "repositoryUrl, configuredByUrl
-                                  // 둘 다 필요"라고 하는데 사실은 이 방식을 선택하라는 뜻 — 2026-09-13
-                                  // 클러스터 재기동 후 Jenkins CrashLoopBackOff로 실제로 겪음).
-                                  configuredByUrl(false)
+                                  // Job DSL의 github{} 컨텍스트는 repoOwner+repository가 아니라
+                                  // repositoryUrl을 실제 필수값으로 요구함(2026-09-13 클러스터
+                                  // 재기동 후 실제로 겪음 — 처음엔 configuredByUrl(false)만 추가했다가
+                                  // "repositoryUrl 필요"로 에러가 바뀌는 걸 보고 확인). repoOwner+
+                                  // repository 조합은 이 버전에서 안 먹혀서 repositoryUrl로 교체.
+                                  repositoryUrl('https://github.com/urineun-jigeum-bildeujung/sever')
                                   credentialsId('gitops-value-push')
                                   traits {
                                     gitHubBranchDiscovery {
