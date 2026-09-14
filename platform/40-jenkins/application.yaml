@@ -149,6 +149,49 @@ spec:
                             }
                           }
                         }
+                    # web(프론트엔드) 레포용 job. sever-ci와 credential/폴링 방식은
+                    # 동일하고, 대상 레포와 Job 이름만 다르다.
+                    - script: >
+                        multibranchPipelineJob('web-ci') {
+                          branchSources {
+                            branchSource {
+                              source {
+                                github {
+                                  id('web-repo')
+                                  repoOwner('urineun-jigeum-bildeujung')
+                                  repository('web')
+                                  repositoryUrl('https://github.com/urineun-jigeum-bildeujung/web')
+                                  configuredByUrl(false)
+                                  credentialsId('gitops-value-push')
+                                  traits {
+                                    gitHubBranchDiscovery {
+                                      strategyId(3) // 모든 브랜치
+                                    }
+                                    gitHubPullRequestDiscovery {
+                                      strategyId(2) // PR head 커밋 그대로(merge 안 함)
+                                    }
+                                    // sever-ci와 동일한 이유로 fork PR은 탐지하지 않음.
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          factory {
+                            workflowBranchProjectFactory {
+                              scriptPath('Jenkinsfile')
+                            }
+                          }
+                          triggers {
+                            periodicFolderTrigger {
+                              interval('2m')
+                            }
+                          }
+                          orphanedItemStrategy {
+                            discardOldItems {
+                              numToKeep(20)
+                            }
+                          }
+                        }
           persistence:
             enabled: true
             size: 8Gi
