@@ -135,8 +135,12 @@ spec:
                             }
                           }
                           triggers {
+                            // GitHub webhook이 등록 안 돼있어서(비공개 EKS 엔드포인트라
+                            // 외부에서 못 들어옴) 지금은 이 주기 폴링이 유일한 트리거
+                            // 수단 — 5분은 CI 반복 디버깅하기엔 너무 느려서 체감 지연이
+                            // 컸음(2026-09-14). 2분으로 단축.
                             periodicFolderTrigger {
-                              interval('5m')
+                              interval('2m')
                             }
                           }
                           orphanedItemStrategy {
