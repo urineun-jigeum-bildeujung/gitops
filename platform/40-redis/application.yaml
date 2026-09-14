@@ -40,7 +40,29 @@ spec:
         architecture: standalone
         auth:
           enabled: false
-        resources: {}
+        # 타임딜 Queue/구매 제어 후보까지 고려해 DEV에서도 재시작 후 데이터 복구가
+        # 가능하도록 AOF + gp3 PVC를 사용한다. HA/replica는 현재 범위가 아니다.
+        commonConfiguration: |-
+          appendonly yes
+          save ""
+        master:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          persistence:
+            enabled: true
+            storageClass: gp3
+            accessModes:
+              - ReadWriteOnce
+            size: 8Gi
+          service:
+            type: ClusterIP
+            ports:
+              redis: 6379
   destination:
     server: https://kubernetes.default.svc
     namespace: redis

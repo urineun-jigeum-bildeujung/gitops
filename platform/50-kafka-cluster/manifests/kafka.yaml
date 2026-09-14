@@ -3,13 +3,13 @@
 # 지금은 데모/뼈대 단계라 controller+broker 역할을 겸하는 노드 1개로 최소 구성.
 # 실제 운영 규모가 커지면 replicas를 늘리고 controller/broker 역할도 분리 검토.
 #
-# 토픽(KafkaTopic)은 서비스 목록/이벤트 이름이 아직 초안이라 여기 포함하지 않음 —
-# 확정되면 이 폴더에 topics.yaml로 추가 예정 (entityOperator.topicOperator가 이미 켜져있어
-# KafkaTopic CR만 추가하면 바로 반영됨).
+# KafkaTopic은 topic.yaml에서 관리한다. Kubernetes metadata.name은 lowercase DNS 이름을,
+# 실제 Kafka Topic은 spec.topicName의 Backend 이벤트 이름을 사용한다.
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaNodePool
 metadata:
   name: dual-role
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
@@ -23,12 +23,21 @@ spec:
       - id: 0
         type: persistent-claim
         size: 10Gi
+        class: gp3
         deleteClaim: false
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: Kafka
 metadata:
   name: pet-subscription-kafka
+  namespace: kafka
   annotations:
     strimzi.io/node-pools: enabled
     strimzi.io/kraft: enabled

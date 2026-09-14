@@ -1,69 +1,83 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: UserSignedUp
+  name: user-signed-up
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: UserSignedUp
   partitions: 3
   replicas: 1
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: OrderPaid
+  name: order-paid
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: OrderPaid
   partitions: 3
   replicas: 1
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: OrderStatusChanged
+  name: order-status-changed
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: OrderStatusChanged
   partitions: 3
   replicas: 1
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: OrderConfirmed
+  name: order-confirmed
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: OrderConfirmed
   partitions: 3
   replicas: 1
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: ReviewCreated
+  name: review-created
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: ReviewCreated
   partitions: 3
   replicas: 1
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: RestockDetected
+  name: restock-detected
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: RestockDetected
   partitions: 3
   replicas: 1
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: MemberWithdrawn
+  name: member-withdrawn
+  namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
 spec:
+  topicName: MemberWithdrawn
   partitions: 3
   replicas: 1
