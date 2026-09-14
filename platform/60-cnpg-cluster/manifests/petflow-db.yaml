@@ -22,11 +22,23 @@ metadata:
   namespace: database
 spec:
   instances: 2
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  imageName: 297165773875.dkr.ecr.ap-northeast-2.amazonaws.com/petflow/postgresql-pg-bigm:17.11-pg-bigm-1.2-20250903
+
+  postgresql:
+    shared_preload_libraries:
+      - pg_bigm
+
+  # 하나의 PostgreSQL Cluster 안에서 서비스별 Database를 논리적으로 분리한다.
+  # CNPG가 생성하는 application owner를 Database CR의 공통 owner로 사용한다.
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
 
   # CNPG가 petflow-db-1, petflow-db-2 data PVC를 생성한다.
   # storageClass는 EKS EBS CSI Driver의 기본 StorageClass를 사용한다.
   storage:
+    storageClass: gp3
     size: 20Gi
 
   resources:
@@ -42,6 +54,94 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: petflow-db-backups
+---
+# sever/local-infra/postgres/init.sql 및 각 서비스 application 설정과 같은 DB 경계다.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: auth-db
+  namespace: database
+spec:
+  name: auth_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: member-db
+  namespace: database
+spec:
+  name: member_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: product-db
+  namespace: database
+spec:
+  name: product_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+  extensions:
+    - name: pg_bigm
+    - name: vector
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: order-db
+  namespace: database
+spec:
+  name: order_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: payment-db
+  namespace: database
+spec:
+  name: payment_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: review-db
+  namespace: database
+spec:
+  name: review_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: notification-db
+  namespace: database
+spec:
+  name: notification_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
 ---
 # 매일 03:00 KST (18:00 UTC)에 base backup을 생성한다.
 # CNPG ScheduledBackup cron은 초를 포함하는 6-field 형식이다.
