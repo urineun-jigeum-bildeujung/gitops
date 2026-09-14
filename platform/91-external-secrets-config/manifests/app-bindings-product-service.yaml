@@ -1,0 +1,54 @@
+# product-service가 CNPG(petflow-db, database 네임스페이스)의 DB 접속 정보를 받아오는 바인딩.
+# provider.kubernetes: AWS Secrets Manager가 아니라 클러스터 안의 petflow-db-app 시크릿을
+# 네임스페이스만 넘어서 그대로 읽어오는 방식 — AWS 인증(Pod Identity) 불필요.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-db-reader
+  namespace: product-service
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: cnpg-db-app
+  namespace: product-service
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: database
+      server:
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: eso-db-reader
+          namespace: product-service
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: db-credentials
+  namespace: product-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: cnpg-db-app
+    kind: SecretStore
+  target:
+    name: db-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: SPRING_DATASOURCE_URL
+      remoteRef:
+        key: petflow-db-app
+        property: jdbc-uri
+    - secretKey: SPRING_DATASOURCE_USERNAME
+      remoteRef:
+        key: petflow-db-app
+        property: username
+    - secretKey: SPRING_DATASOURCE_PASSWORD
+      remoteRef:
+        key: petflow-db-app
+        property: password
