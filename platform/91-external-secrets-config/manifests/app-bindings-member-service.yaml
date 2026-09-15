@@ -52,3 +52,28 @@ spec:
       remoteRef:
         key: petflow-db-app
         property: password
+---
+# internal.gateway-secret 임시값(2026-09-15). api-gateway가 아직 배포 전이라 실제 검증
+# 대상이 없는 상태 — auth-service/member-service 부팅 실패(PlaceholderResolutionException)만
+# 우선 해소하는 목적. auth-service/member-service/api-gateway가 전부 같은 값을 써야 하므로
+# 서비스별 경로(petflow/member-service/...)가 아니라 공유 경로(petflow/internal/...)에 둠.
+# 백엔드팀이 실제 값/생성 규칙을 정하면 AWS Secrets Manager 값만 교체하면 되고,
+# gitops/gitops-value 코드는 다시 건드릴 필요 없음(ExternalSecret refreshInterval 1h +
+# rolling restart로 반영).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-secret
+  namespace: member-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: gateway-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: INTERNAL_GATEWAY_SECRET
+      remoteRef:
+        key: petflow/internal/gateway-secret
