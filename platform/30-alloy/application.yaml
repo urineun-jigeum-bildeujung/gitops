@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: k8s-monitoring
+    repoURL: https://grafana.github.io/helm-charts
+    targetRevision: "4.5.2" # 2026-09-15 기준 최신 안정 버전
+    helm:
+      releaseName: alloy
+      values: |
+        # Loki/Tempo는 떠 있기만 하고 실제 로그·트레이스가 하나도 안 들어가고 있었음
+        # (2026-09-15 확인 — loki에 있는 유일한 라벨이 loki-canary 자체 헬스체크 로그뿐,
+        # tempo는 tagNames가 완전히 빈 상태). Alloy(Promtail 후속, 공식 유지 중인 수집기)를
+        # DaemonSet으로 배포해서 각 노드의 파드 로그를 실제로 Loki로 보낸다.
+        #
+        # 트레이스는 여기서 안 다룸 — 각 서비스가 OTLP로 tempo.observability:4317에
+        # 직접 보내는 방식으로 갈 예정이라(서비스 코드/Dockerfile 계측 필요, 별도 작업),
+        # Alloy를 트레이스 중계로 쓸 필요가 없음.
+        cluster:
+          name: petflow-dev
+        collectors:
+          alloy:
+            presets: [filesystem-log-reader]
+        destinations:
+          loki:
+            type: loki
+            url: http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push
+        podLogsViaLoki:
+          enabled: true
+          destinations: ["loki"]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
