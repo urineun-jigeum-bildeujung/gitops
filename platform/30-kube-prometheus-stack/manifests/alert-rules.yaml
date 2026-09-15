@@ -5,6 +5,11 @@
 #
 # runbook_url 어노테이션은 docs/runbooks/의 대응 문서를 가리킴 — 알림이 울렸을 때
 # Alertmanager/Discord 메시지에 이 URL이 그대로 실려서 바로 대응 문서로 이동 가능하게 함.
+#
+# service 라벨 대신 namespace로 필터링/그룹핑한다 — service는 charts/generic-service의
+# ServiceMonitor relabeling이 k8s Service 이름을 그대로 붙인 값인데, 7개 서비스 전부
+# Service 이름이 "generic-service"로 동일해서 서비스 구분에 못 쓴다(2026-09-15 실제
+# Prometheus 쿼리로 확인 — 그전엔 알림이 와도 어느 서비스인지 구분이 안 되는 상태였음).
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -17,38 +22,38 @@ spec:
       rules:
         - alert: HighErrorRate
           expr: |
-            sum(rate(http_server_requests_seconds_count{service=~".+", status=~"5.."}[5m])) by (service)
+            sum(rate(http_server_requests_seconds_count{namespace=~".+-service", status=~"5.."}[5m])) by (namespace)
             /
-            sum(rate(http_server_requests_seconds_count{service=~".+"}[5m])) by (service)
+            sum(rate(http_server_requests_seconds_count{namespace=~".+-service"}[5m])) by (namespace)
             > 0.05
           for: 5m
           labels:
             severity: critical
           annotations:
-            summary: "{{ $labels.service }} 5xx 에러율 5% 초과"
-            description: "{{ $labels.service }}의 최근 5분간 5xx 에러율이 {{ $value | humanizePercentage }}입니다."
+            summary: "{{ $labels.namespace }} 5xx 에러율 5% 초과"
+            description: "{{ $labels.namespace }}의 최근 5분간 5xx 에러율이 {{ $value | humanizePercentage }}입니다."
             runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/high-error-rate.md"
 
         - alert: HighLatencyP99
           expr: |
-            histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service=~".+"}[5m])) by (le, service))
+            histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=~".+-service"}[5m])) by (le, namespace))
             > 1
           for: 5m
           labels:
             severity: warning
           annotations:
-            summary: "{{ $labels.service }} p99 지연시간 1초 초과"
-            description: "{{ $labels.service }}의 p99 응답시간이 {{ $value | humanizeDuration }}입니다."
+            summary: "{{ $labels.namespace }} p99 지연시간 1초 초과"
+            description: "{{ $labels.namespace }}의 p99 응답시간이 {{ $value | humanizeDuration }}입니다."
             runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/high-latency-p99.md"
 
         - alert: ServiceDown
-          expr: up{service=~".+"} == 0
+          expr: up{namespace=~".+-service"} == 0
           for: 2m
           labels:
             severity: critical
           annotations:
-            summary: "{{ $labels.service }} 다운"
-            description: "{{ $labels.service }}가 2분 이상 Prometheus 스크레이프에 응답하지 않습니다."
+            summary: "{{ $labels.namespace }} 다운"
+            description: "{{ $labels.namespace }}가 2분 이상 Prometheus 스크레이프에 응답하지 않습니다."
             runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/service-down.md"
 
         - alert: PodCrashLooping
@@ -103,11 +108,11 @@ spec:
 
         - alert: HikariCPConnectionPoolExhausted
           expr: |
-            hikaricp_connections_active{service=~".+"} >= hikaricp_connections_max{service=~".+"}
+            hikaricp_connections_active{namespace=~".+-service"} >= hikaricp_connections_max{namespace=~".+-service"}
           for: 5m
           labels:
             severity: critical
           annotations:
-            summary: "{{ $labels.service }} DB 커넥션 풀 고갈"
-            description: "{{ $labels.service }}의 HikariCP 활성 커넥션이 5분 이상 최대치에 도달해 있습니다."
+            summary: "{{ $labels.namespace }} DB 커넥션 풀 고갈"
+            description: "{{ $labels.namespace }}의 HikariCP 활성 커넥션이 5분 이상 최대치에 도달해 있습니다."
             runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/hikaricp-pool-exhausted.md"

@@ -29,10 +29,10 @@ data:
             "hide": 0
           },
           {
-            "name": "service",
+            "name": "namespace",
             "type": "query",
             "datasource": { "type": "prometheus", "uid": "$datasource" },
-            "query": "label_values(jvm_memory_used_bytes, service)",
+            "query": "label_values(jvm_memory_used_bytes, namespace)",
             "refresh": 2,
             "multi": true,
             "includeAll": true,
@@ -50,12 +50,12 @@ data:
           "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "sum(jvm_memory_used_bytes{area=\"heap\", service=~\"$service\"}) by (service)",
-              "legendFormat": "{{service}} 사용중"
+              "expr": "sum(jvm_memory_used_bytes{area=\"heap\", namespace=~\"$namespace\"}) by (namespace)",
+              "legendFormat": "{{namespace}} 사용중"
             },
             {
-              "expr": "sum(jvm_memory_max_bytes{area=\"heap\", service=~\"$service\"}) by (service)",
-              "legendFormat": "{{service}} 최대치"
+              "expr": "sum(jvm_memory_max_bytes{area=\"heap\", namespace=~\"$namespace\"}) by (namespace)",
+              "legendFormat": "{{namespace}} 최대치"
             }
           ]
         },
@@ -68,8 +68,8 @@ data:
           "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "sum(rate(jvm_gc_pause_seconds_sum{service=~\"$service\"}[5m])) by (service, action)",
-              "legendFormat": "{{service}} {{action}}"
+              "expr": "sum(rate(jvm_gc_pause_seconds_sum{namespace=~\"$namespace\"}[5m])) by (namespace, action)",
+              "legendFormat": "{{namespace}} {{action}}"
             }
           ]
         },
@@ -82,8 +82,8 @@ data:
           "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "jvm_threads_live_threads{service=~\"$service\"}",
-              "legendFormat": "{{service}}"
+              "expr": "jvm_threads_live_threads{namespace=~\"$namespace\"}",
+              "legendFormat": "{{namespace}}"
             }
           ]
         },
@@ -95,8 +95,8 @@ data:
           "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "process_cpu_usage{service=~\"$service\"}",
-              "legendFormat": "{{service}}"
+              "expr": "process_cpu_usage{namespace=~\"$namespace\"}",
+              "legendFormat": "{{namespace}}"
             }
           ]
         },
@@ -109,12 +109,12 @@ data:
           "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "hikaricp_connections_active{service=~\"$service\"}",
-              "legendFormat": "{{service}} 활성"
+              "expr": "hikaricp_connections_active{namespace=~\"$namespace\"}",
+              "legendFormat": "{{namespace}} 활성"
             },
             {
-              "expr": "hikaricp_connections_max{service=~\"$service\"}",
-              "legendFormat": "{{service}} 최대"
+              "expr": "hikaricp_connections_max{namespace=~\"$namespace\"}",
+              "legendFormat": "{{namespace}} 최대"
             }
           ]
         }
