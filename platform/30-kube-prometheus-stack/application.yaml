@@ -27,8 +27,40 @@ spec:
             # 가능한 emptyDir로 덮어쓰고, 필요한 플러그인만 plugins:에 명시해서
             # 정상 설치 경로(/var/lib/grafana/plugins)로 새로 받게 한다.
             shadowBundledPlugins: true
+            # loki/tempo도 prometheus와 같은 이유(Grafana 13에서 코어 분리)로
+            # shadowBundledPlugins 대상에 포함해야 데이터소스로 추가했을 때
+            # 똑같이 고장나지 않는다.
             plugins:
               - prometheus
+              - loki
+              - tempo
+            # Loki/Tempo를 실제 데이터소스로 등록 + 로그<->트레이스 상호 연결(derived
+            # field/tracesToLogs). trace_id 매칭 정규식은 아직 어떤 서비스도 트레이스를
+            # 안 보내고 있어서 추정값 — 서비스에 OTel 계측 붙이는 작업(다음 단계) 끝나면
+            # 실제 로그 포맷 보고 재확인 필요.
+            additionalDataSources:
+              - name: Loki
+                type: loki
+                access: proxy
+                uid: loki
+                url: http://loki-gateway.observability.svc.cluster.local
+                jsonData:
+                  derivedFields:
+                    - datasourceUid: tempo
+                      matcherRegex: "traceId=(\\w+)"
+                      name: TraceID
+                      url: "${__value.raw}"
+              - name: Tempo
+                type: tempo
+                access: proxy
+                uid: tempo
+                url: http://tempo.observability.svc.cluster.local:3200
+                jsonData:
+                  tracesToLogsV2:
+                    datasourceUid: loki
+                    spanStartTimeShift: "-5m"
+                    spanEndTimeShift: "5m"
+                    filterByTraceID: true
           alertmanager:
             config:
               receivers: [] # TODO: 00번 문서 기준 Discord webhook 연동
