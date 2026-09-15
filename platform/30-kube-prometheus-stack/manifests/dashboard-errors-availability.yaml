@@ -1,7 +1,8 @@
 # 에러/가용성 대시보드 — "지금 뭐가 죽어있거나 자꾸 죽는가"에 집중.
-# up 메트릭에도 service 라벨이 붙는 이유: servicemonitor.yaml의 relabelings가
-# target(스크레이프 대상) 레벨에 라벨을 붙이는 거라, 그 타겟에서 나오는 모든
-# 메트릭(up 포함)에 공통으로 적용됨.
+# $namespace 변수를 쓴다. service 라벨은 7개 서비스 전부 "generic-service"로 동일해서
+# (charts/generic-service/templates/servicemonitor.yaml relabelings) 구분이 안 되고,
+# namespace는 서비스마다 달라서(auth-service, order-service...) 이걸로 필터링/그룹핑한다
+# (2026-09-15 실제 Prometheus 쿼리로 확인).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -29,10 +30,10 @@ data:
             "hide": 0
           },
           {
-            "name": "service",
+            "name": "namespace",
             "type": "query",
             "datasource": { "type": "prometheus", "uid": "$datasource" },
-            "query": "label_values(up{service=~\".+\"}, service)",
+            "query": "label_values(up{namespace=~\".+\"}, namespace)",
             "refresh": 2,
             "multi": true,
             "includeAll": true,
@@ -52,7 +53,7 @@ data:
             { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } }
           ] }, "overrides": [] },
           "targets": [
-            { "expr": "up{service=~\"$service\"}", "legendFormat": "{{service}}" }
+            { "expr": "up{namespace=~\"$namespace\"}", "legendFormat": "{{namespace}}" }
           ]
         },
         { "type": "row", "title": "에러 상세", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 } },
@@ -64,8 +65,8 @@ data:
           "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "sum(increase(http_server_requests_seconds_count{service=~\"$service\", status=~\"5..\"}[5m])) by (service, uri, status)",
-              "legendFormat": "{{service}} {{uri}} ({{status}})"
+              "expr": "sum(increase(http_server_requests_seconds_count{namespace=~\"$namespace\", status=~\"5..\"}[5m])) by (namespace, uri, status)",
+              "legendFormat": "{{namespace}} {{uri}} ({{status}})"
             }
           ]
         },
@@ -78,7 +79,7 @@ data:
           "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$service\"}[1h])) by (namespace, pod)",
+              "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])) by (namespace, pod)",
               "legendFormat": "{{namespace}}/{{pod}}"
             }
           ]
@@ -91,7 +92,7 @@ data:
           "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 60 } }, "overrides": [] },
           "targets": [
             {
-              "expr": "sum(kube_pod_status_ready{namespace=~\"$service\", condition=\"false\"}) by (namespace)",
+              "expr": "sum(kube_pod_status_ready{namespace=~\"$namespace\", condition=\"false\"}) by (namespace)",
               "legendFormat": "{{namespace}}"
             }
           ]
