@@ -1,0 +1,34 @@
+# Argo Rollouts 컨트롤러. charts/generic-service의 rollout.yaml/analysistemplate.yaml이
+# 정의하는 Rollout/AnalysisTemplate CRD를 실제로 처리해줄 컨트롤러가 지금까지 클러스터에
+# 없어서, 그 두 템플릿을 켜도 아무 일도 일어나지 않는 상태였음(2026-09-16 확인) —
+# 카나리/블루그린 배포 시연을 위한 첫 전제 조건.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: argo-rollouts
+    repoURL: https://argoproj.github.io/argo-helm
+    targetRevision: "2.43.1" # 2026-09-16 기준 최신 안정 버전 (app v1.10.0)
+    helm:
+      releaseName: argo-rollouts
+      values: |
+        dashboard:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
