@@ -52,3 +52,26 @@ spec:
       remoteRef:
         key: petflow-db-app
         property: password
+---
+# internal.gateway-secret 임시값(2026-09-16). order-service가 장바구니 PR(#60)에서
+# common-security 모듈 의존성이 추가되면서 auth/member-service와 같은
+# PlaceholderResolutionException으로 크래시하게 됨 — 이미 만들어둔 공유 임시값을
+# 그대로 재사용(petflow/internal/gateway-secret, auth/member-service와 동일).
+# api-gateway 배포 시 실제 값으로 교체 예정.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-secret
+  namespace: order-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: gateway-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: INTERNAL_GATEWAY_SECRET
+      remoteRef:
+        key: petflow/internal/gateway-secret
