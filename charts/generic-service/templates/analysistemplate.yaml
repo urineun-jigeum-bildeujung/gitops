@@ -8,6 +8,13 @@
 #
 # metric 이름(http_server_requests_seconds_count)은 Spring Boot Actuator + Micrometer
 # 기본 계측 기준. 다른 스택(Node.js 등) 서비스는 메트릭 이름을 별도 확인해서 맞출 것.
+#
+# namespace 라벨로 필터링(2026-09-16 수정) — 원래 service 라벨을 썼는데, 이 라벨은
+# ServiceMonitor relabeling이 k8s Service 오브젝트 이름을 그대로 붙인 값이라 이 차트를
+# 쓰는 모든 서비스에서 전부 "generic-service"로 동일함(대시보드/알림에서 2026-09-15에
+# 이미 발견한 것과 같은 원인). 그대로 두면 카나리 대상 서비스만이 아니라 클러스터 전체
+# 서비스의 에러율을 보게 되어 자동 판단이 무의미해짐 — namespace는 서비스마다 실제로
+# 달라서 이 용도에 맞음.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -25,7 +32,7 @@ spec:
         prometheus:
           address: {{ .Values.canary.analysis.prometheusAddress }}
           query: |
-            sum(rate(http_server_requests_seconds_count{service="{{ include "generic-service.name" . }}",status=~"5.."}[5m]))
+            sum(rate(http_server_requests_seconds_count{namespace="{{ .Release.Namespace }}",status=~"5.."}[5m]))
             /
-            sum(rate(http_server_requests_seconds_count{service="{{ include "generic-service.name" . }}"}[5m]))
+            sum(rate(http_server_requests_seconds_count{namespace="{{ .Release.Namespace }}"}[5m]))
 {{- end }}
