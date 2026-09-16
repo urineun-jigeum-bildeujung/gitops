@@ -13,7 +13,7 @@ projects/
 platform/
   00-cert-manager/             인증서 자동 발급 (Istio 대신 채택)
   05-namespaces/, 05-rbac/     네임스페이스, RBAC
-  05-storageclass/             gp3 기본 StorageClass (EKS 기본 gp2는 구식 드라이버라 K8s 1.27+에서 동작 안 함)
+  05-storageclass/             공용 gp3 + 자동 EBS Backup 태그가 있는 CNPG 전용 gp3-cnpg
   10-ingress-nginx/            클러스터 진입점
   30-kube-prometheus-stack/, 30-loki/, 30-tempo/    관찰성 3종
   40-cnpg-operator/, 40-keda/, 40-external-secrets-operator/, 40-kafka-operator/,
@@ -29,6 +29,8 @@ charts/generic-service/        서비스 전체가 공유하는 공용 Helm 차�
 docs/
   branching-strategy.md        브랜치 전략, PR 규칙
   redis-kafka-platform.md      Redis/Kafka 설정 계약, Endpoint, 검증 및 역할 경계
+operations/
+  data-protection/             Argo CD 비대상 CNPG 온디맨드 복원 검증 Manifest/Runbook
 ```
 
 폴더 이름의 숫자(`00-`, `05-`, `30-`...)는 사람이 읽을 때 배포 순서를 한눈에 알 수 있게 하는 표시일 뿐이고,

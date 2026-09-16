@@ -35,10 +35,16 @@ spec:
       database: app
       owner: app
 
+  # Primary/Standby를 서로 다른 AZ에 강제로 배치한다.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: topology.kubernetes.io/zone
+    podAntiAffinityType: required
+
   # CNPG가 petflow-db-1, petflow-db-2 data PVC를 생성한다.
-  # storageClass는 EKS EBS CSI Driver의 기본 StorageClass를 사용한다.
+  # 기존 gp3 PVC는 그대로 유지되고 새 인스턴스/재구축 PVC부터 gp3-cnpg를 사용한다.
   storage:
-    storageClass: gp3
+    storageClass: gp3-cnpg
     size: 20Gi
 
   resources:
