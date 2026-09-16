@@ -1,0 +1,15 @@
+# PostgreSQL 전용 StorageClass다. 공용 gp3를 사용하는 Jenkins/Kafka/Redis를
+# AWS Backup 대상으로 포함하지 않도록 CNPG EBS에만 선택 태그를 부여한다.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3-cnpg
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  type: gp3
+  encrypted: "true"
+  tagSpecification_1: "PetflowBackup=petflow-cnpg"
+  tagSpecification_2: "DataClass=cnpg-data"

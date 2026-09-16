@@ -6,6 +6,9 @@ charts/*/charts/       # helm dependency build로 받은 서브차트 tarball
 *.rendered.yaml
 rendered/
 
+# 공용 Argo CD 경로 밖에서 수행한 로컬 데이터 보호 AA 테스트
+/tests/data-protection-aa/
+
 # 클러스터 접속 정보
 kubeconfig
 *.kubeconfig

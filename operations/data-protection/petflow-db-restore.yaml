@@ -1,0 +1,37 @@
+# Argo CD 자동 동기화 대상이 아니다. 복원 검증할 때만 수동 적용하고 검증 후 삭제한다.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: petflow-db-restore
+  namespace: database
+spec:
+  instances: 1
+  imageName: 297165773875.dkr.ecr.ap-northeast-2.amazonaws.com/petflow/postgresql-pg-bigm:17.11-pg-bigm-1.2-20250903
+
+  postgresql:
+    shared_preload_libraries:
+      - pg_bigm
+
+  bootstrap:
+    recovery:
+      source: petflow-db-source
+
+  externalClusters:
+    - name: petflow-db-source
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: petflow-db-backups
+          serverName: petflow-db
+
+  storage:
+    storageClass: gp3-cnpg
+    size: 20Gi
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
