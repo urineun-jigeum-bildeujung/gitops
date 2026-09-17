@@ -40,18 +40,39 @@ spec:
             {{- toYaml .Values.env | nindent 12 }}
             {{- end }}
             {{- include "generic-service.mtlsEnv" . | nindent 12 }}
-          {{- if .Values.mtls.enabled }}
+            {{- include "generic-service.kafkaSaslEnv" . | nindent 12 }}
+          {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
           volumeMounts:
+            {{- if .Values.mtls.enabled }}
             - name: mtls-cert
               mountPath: /etc/mtls
               readOnly: true
+            {{- end }}
+            {{- if .Values.kafka.sasl.enabled }}
+            - name: kafka-truststore
+              mountPath: /etc/kafka-tls
+              readOnly: true
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- if .Values.mtls.enabled }}
+      {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
       volumes:
+        {{- if .Values.mtls.enabled }}
         - name: mtls-cert
           secret:
             secretName: {{ include "generic-service.name" . }}-mtls-cert
+        {{- end }}
+        {{- if .Values.kafka.sasl.enabled }}
+        - name: kafka-truststore
+          secret:
+            secretName: kafka-credentials
+            # kafka-credentials Secret엔 SASL 비밀번호가 든 JAAS 설정 문자열도 같이
+            # 들어있어서(env로만 씀), items로 ca.crt만 골라 마운트한다 - 안 그러면
+            # 비밀번호가 파일로도 노출되어 불필요하게 중복 노출됨.
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
       {{- end }}
 {{- end }}
