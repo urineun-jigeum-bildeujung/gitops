@@ -1,0 +1,30 @@
+# Redis 서버용 mTLS 인증서. internal-ca-issuer(platform/00-internal-ca)를 그대로 재사용한다
+# — Kafka(Strimzi가 자체 CA를 새로 만드는 구조)와 달리, Redis는 기존 내부 CA 체계에
+# 그대로 편입시킨다. 클라이언트(order-service 등)는 이미 같은 CA로 발급받은 HTTP mTLS
+# 인증서(generic-service 차트의 mtls.enabled)를 Redis 접속에도 그대로 재사용할 수 있어서
+# 서버 인증서 하나만 여기서 새로 발급하면 된다.
+#
+# usages를 server auth만 넣은 이유: Redis standalone 구성에서 이 인스턴스는 다른 곳에
+# 클라이언트로 접속하지 않고 항상 서버 역할만 하므로 client auth는 불필요.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: redis-server-mtls
+  namespace: redis
+spec:
+  secretName: redis-server-mtls-cert
+  commonName: redis-master.redis.svc.cluster.local
+  dnsNames:
+    - redis-master.redis.svc.cluster.local
+    - redis-master.redis.svc
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+  issuerRef:
+    name: internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
