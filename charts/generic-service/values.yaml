@@ -76,6 +76,12 @@ networkPolicy:
   enabled: false
   allowedNamespaces: []
 
+# 서비스 간 mTLS. true로 켜면 platform/00-internal-ca(사설 CA)가 이 서비스 전용
+# 인증서(서버+클라이언트 겸용)를 발급한다. 인증서만 발급되는 단계이고, 애플리케이션이
+# 그 인증서를 실제로 로드해서 HTTPS로 서빙/호출하게 만드는 건 공통 모듈(다음 단계) 몫.
+mtls:
+  enabled: false
+
 env: []
   # - name: EXAMPLE_ENV
   #   value: "example"

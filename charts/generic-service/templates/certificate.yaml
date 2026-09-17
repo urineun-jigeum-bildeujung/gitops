@@ -1,0 +1,39 @@
+{{- if .Values.mtls.enabled }}
+# 서비스 간 mTLS용 인증서 — 이 서비스가 "서버 역할"(요청을 받을 때)과 "클라이언트
+# 역할"(다른 서비스를 호출할 때) 둘 다에 쓸 인증서 하나. usages에 server auth/client
+# auth를 둘 다 넣어서 한 인증서로 양쪽 다 커버한다(서비스마다 인증서를 2개씩 관리할
+# 필요 없음).
+#
+# 발급 대상 CA는 platform/00-internal-ca가 만든 internal-ca-issuer(사설 CA) —
+# leechs.shop용 공인 ACM 인증서와는 완전히 별개.
+#
+# 이 Certificate가 생성하는 Secret에는 tls.crt/tls.key(이 서비스 자신의 인증서)뿐
+# 아니라 ca.crt(발급기관의 공개 인증서)도 자동으로 같이 들어있다 — 그래서 이 Secret
+# 하나로 "내 신분증 제시"(keystore)와 "상대 신분증 검증"(truststore)을 둘 다 할 수 있다.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "generic-service.name" . }}-mtls
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "generic-service.name" . }}-mtls-cert
+  commonName: {{ include "generic-service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  dnsNames:
+    - {{ include "generic-service.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ include "generic-service.name" . }}.{{ .Release.Namespace }}.svc
+  # 루트 CA(10년)와 달리 서비스 인증서는 짧게 — 90일 유효, 만료 15일 전에
+  # cert-manager가 자동 갱신한다.
+  duration: 2160h
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - server auth
+    - client auth
+  issuerRef:
+    name: internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+{{- end }}
