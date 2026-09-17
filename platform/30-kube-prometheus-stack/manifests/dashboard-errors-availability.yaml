@@ -3,6 +3,13 @@
 # (charts/generic-service/templates/servicemonitor.yaml relabelings) 구분이 안 되고,
 # namespace는 서비스마다 달라서(auth-service, order-service...) 이걸로 필터링/그룹핑한다
 # (2026-09-15 실제 Prometheus 쿼리로 확인).
+#
+# namespace 변수의 후보를 up{namespace=~".+"}로 뽑으면 petflow 서비스뿐 아니라
+# kube-system/jenkins/observability 등 클러스터 전체 스크랩 대상이 다 섞여 들어와서
+# "서비스 up/down" 패널 범례가 겹쳐서 안 읽히는 문제가 있었음(2026-09-17 실제 캡처
+# 중 발견). up{job="generic-service"}로 바꾸면 7개 서비스 namespace만 정확히
+# 나오고, 크래시 중인 서비스도 up=0으로 그대로 잡혀서(값이 사라지는 게 아니라
+# DOWN으로 보임) 오히려 더 정확하다 — 직접 Prometheus 쿼리로 검증함.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -33,7 +40,7 @@ data:
             "name": "namespace",
             "type": "query",
             "datasource": { "type": "prometheus", "uid": "$datasource" },
-            "query": "label_values(up{namespace=~\".+\"}, namespace)",
+            "query": "label_values(up{job=\"generic-service\"}, namespace)",
             "refresh": 2,
             "multi": true,
             "includeAll": true,
