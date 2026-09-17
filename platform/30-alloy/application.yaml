@@ -82,6 +82,45 @@ spec:
         podLogsViaLoki:
           enabled: true
           destinations: ["loki"]
+        # Faro 수집 엔드포인트 공개 노출 (2026-09-17, Faro RUM 수집 3단계).
+        # web의 기존 Ingress(leechs.shop, ALB 그룹 petflow-public)와 같은 ALB를 공유하되
+        # 경로만 다르게 추가 — ALB는 경로 재작성을 지원하지 않아서 Alloy가 실제로 받는
+        # 경로(/collect)를 그대로 공개 경로로 씀(포트포워드로 실제 응답 확인 완료:
+        # GET / -> 404, GET /-/ready -> 200, POST /collect(키 없이) -> 401).
+        # group.order를 web(20)보다 낮게(10) 줘서, web의 만능 규칙(path: /)보다 먼저
+        # 평가되게 함 — 안 그러면 /collect 요청도 web의 catch-all에 걸릴 수 있음.
+        # leechs.shop 도메인은 나중에 바뀔 수 있음(placeholder 추적 메모에 기록해둠) —
+        # 바뀌면 이 host 값도 같이 수정 필요.
+        extraObjects:
+          - apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: alloy-faro-collector
+              namespace: observability
+              annotations:
+                alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:297165773875:certificate/38399d86-e76d-4323-9b3d-721b32acd2ce
+                alb.ingress.kubernetes.io/group.name: petflow-public
+                alb.ingress.kubernetes.io/group.order: "10"
+                alb.ingress.kubernetes.io/healthcheck-path: /-/ready
+                alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+                alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+                alb.ingress.kubernetes.io/load-balancer-name: petflow-dev-public
+                alb.ingress.kubernetes.io/scheme: internet-facing
+                alb.ingress.kubernetes.io/ssl-redirect: "443"
+                alb.ingress.kubernetes.io/target-type: ip
+            spec:
+              ingressClassName: alb
+              rules:
+                - host: leechs.shop
+                  http:
+                    paths:
+                      - path: /collect
+                        pathType: Exact
+                        backend:
+                          service:
+                            name: alloy
+                            port:
+                              number: 12347
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
