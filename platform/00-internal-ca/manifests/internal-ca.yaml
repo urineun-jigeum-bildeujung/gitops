@@ -1,0 +1,46 @@
+# 클러스터 내부 서비스 간 mTLS용 사설 CA(발급기관). 인터넷에 공개된 leechs.shop용
+# ACM 인증서와는 완전히 별개 — 이건 서비스끼리만 서로 신뢰하면 되는 용도라 공인
+# 발급기관(ACM/Let's Encrypt)을 쓸 이유가 없고, 애초에 클러스터 내부 도메인
+# (예: generic-service.order-service.svc.cluster.local)은 공인 발급기관이 발급 자체를
+# 안 해준다.
+#
+# 표준 cert-manager "self-signed CA" 부트스트랩 패턴 3단계:
+#   1) internal-ca-bootstrap : 아래 2번 CA 인증서 하나를 만들기 위해서만 쓰는 임시 발급기관
+#   2) internal-ca(Certificate, isCA: true) : 우리 CA의 "신분증 원본" — 10년 장기 인증서
+#   3) internal-ca-issuer : 2번 CA를 근거로 실제 서비스 인증서를 찍어주는 발급기관.
+#      앞으로 각 서비스의 Certificate 리소스는 전부 이 issuerRef를 참조한다.
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: internal-ca-bootstrap
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: internal-ca
+  # ClusterIssuer(kind: ca)는 cert-manager 컨트롤러의 기본 클러스터 리소스 네임스페이스인
+  # cert-manager 네임스페이스에서 secretName을 찾는다 — 그래서 반드시 여기에 만들어야 함.
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: petflow-internal-ca
+  secretName: internal-ca-secret
+  duration: 87600h # 10년 — 루트 CA는 자주 안 바꾸는 게 정상이라 장기로 설정
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: internal-ca-bootstrap
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: internal-ca-issuer
+spec:
+  ca:
+    secretName: internal-ca-secret
