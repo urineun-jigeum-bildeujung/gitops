@@ -67,6 +67,10 @@ spec:
             type: otlp
             url: http://tempo.observability.svc.cluster.local:4317
             protocol: grpc
+            # destinations.<name>.tls.insecure 기본값이 false(TLS 사용)라서 이 값 없이는
+            # otelcol.exporter.otlp가 TLS 핸드셰이크를 시도하다 실패함(Tempo는 평문 gRPC).
+            tls:
+              insecure: true
         podLogsViaLoki:
           enabled: true
           destinations: ["loki"]
