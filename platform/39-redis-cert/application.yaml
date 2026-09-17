@@ -1,0 +1,30 @@
+# internal-ca(wave -9)가 뜬 뒤, Redis(40-redis, wave 1) 본체보다 먼저 서버 인증서를
+# 준비해둔다. Kafka(Strimzi 자체 CA)와 달리 Redis TLS는 이미 있는 internal-ca-issuer를
+# 그대로 재사용한다 — 새 CA 체계를 또 만들 이유가 없어서.
+#
+# redis 네임스페이스는 40-redis Application이 CreateNamespace=true로 만들지만, 이
+# Application이 wave 순서상 더 먼저 돌 수 있어서 여기서도 독립적으로 CreateNamespace=true를
+# 건다(어느 쪽이 먼저 실행되든 안전하게).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis-cert
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
+    targetRevision: main
+    path: platform/39-redis-cert/manifests
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
