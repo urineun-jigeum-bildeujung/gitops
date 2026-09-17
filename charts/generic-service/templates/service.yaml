@@ -11,6 +11,12 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
+    {{- if .Values.mtls.enabled }}
+    - name: mtls
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    {{- end }}
   selector:
     {{- include "generic-service.selectorLabels" . | nindent 4 }}
 {{- if .Values.blueGreen.enabled }}
@@ -30,6 +36,12 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
+    {{- if .Values.mtls.enabled }}
+    - name: mtls
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    {{- end }}
   selector:
     {{- include "generic-service.selectorLabels" . | nindent 4 }}
 {{- end }}
