@@ -38,6 +38,11 @@ spec:
             extraConfig: |
               faro.receiver "app" {
                 server {
+                  # listen_address 기본값이 127.0.0.1이라 파드 루프백에서만 접속 가능했음 —
+                  # kubectl port-forward는 루프백을 타서 정상 응답했지만, 실제 Service/ALB를
+                  # 통한 파드 간 통신은 전부 "Connection refused"로 막혀있었음(3단계 실제
+                  # 배포 후 발견, 2026-09-17). 0.0.0.0으로 바꿔서 파드 밖에서도 접속 가능하게 함.
+                  listen_address       = "0.0.0.0"
                   listen_port          = 12347
                   cors_allowed_origins = []
                   api_key              = env("FARO_API_KEY")
