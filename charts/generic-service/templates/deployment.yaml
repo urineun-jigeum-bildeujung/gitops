@@ -31,8 +31,27 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
+            {{- if .Values.mtls.enabled }}
+            - containerPort: 8443
+              name: mtls
+            {{- end }}
           env:
+            {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
+            {{- end }}
+            {{- include "generic-service.mtlsEnv" . | nindent 12 }}
+          {{- if .Values.mtls.enabled }}
+          volumeMounts:
+            - name: mtls-cert
+              mountPath: /etc/mtls
+              readOnly: true
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.mtls.enabled }}
+      volumes:
+        - name: mtls-cert
+          secret:
+            secretName: {{ include "generic-service.name" . }}-mtls-cert
+      {{- end }}
 {{- end }}
