@@ -37,12 +37,23 @@ tasks:
         "
 
   bootstrap:
-    desc: 최초 부트스트랩 — ArgoCD 설치까지 포함해서 한 번에 (재구축 후에도 이 하나로 충분)
+    desc: 전체 부트스트랩 — ArgoCD, Jenkins Credential, Root Application 복구
     cmds:
       - task: bootstrap:argocd
+      - task: bootstrap:credentials
+      - task: bootstrap:root-app
+
+  bootstrap:core:
+    desc: 핵심 부트스트랩 — GitHub CLI 인증 없이 ArgoCD와 Root Application 복구
+    cmds:
+      - task: bootstrap:argocd
+      - task: bootstrap:root-app
+
+  bootstrap:credentials:
+    desc: Jenkins 운영 Credential 복구 (GitHub CLI 로그인 필요)
+    cmds:
       - task: bootstrap:jenkins-admin-secret
       - task: bootstrap:jenkins-git-credentials
-      - task: bootstrap:root-app
 
   bootstrap:argocd:
     desc: ArgoCD Helm 설치/업그레이드 (이미 있으면 그대로 유지, --install이라 몇 번을 실행해도 안전)
