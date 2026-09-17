@@ -71,6 +71,14 @@ spec:
             # otelcol.exporter.otlp가 TLS 핸드셰이크를 시도하다 실패함(Tempo는 평문 gRPC).
             tls:
               insecure: true
+        # 차트 자체 사용현황 메트릭(build_info 등, 우리 관측성 데이터와 무관)을 명시적으로
+        # 안 끄면 "메트릭을 받을 수 있는 모든 목적지"로 자동 전송됨 — 우리 클러스터엔 그 조건에
+        # 맞는 목적지가 tempo뿐이라 거기로 새고 있었음. Tempo는 트레이스 전용이라 메트릭을
+        # 받는 기능이 없어 "Unimplemented ...MetricsService" 에러로 실패함. destinations.tempo에
+        # metrics.enabled:false를 직접 주면 이 차트 버전(4.5.2) 특성상 그 목적지 자체가 통째로
+        # 안 만들어지는 부작용이 있어(helm template로 확인), 그 대신 selfReporting 자체를 끔.
+        selfReporting:
+          enabled: false
         podLogsViaLoki:
           enabled: true
           destinations: ["loki"]
