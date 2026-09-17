@@ -21,18 +21,52 @@ spec:
         # tempo는 tagNames가 완전히 빈 상태). Alloy(Promtail 후속, 공식 유지 중인 수집기)를
         # DaemonSet으로 배포해서 각 노드의 파드 로그를 실제로 Loki로 보낸다.
         #
-        # 트레이스는 여기서 안 다룸 — 각 서비스가 OTLP로 tempo.observability:4317에
-        # 직접 보내는 방식으로 갈 예정이라(서비스 코드/Dockerfile 계측 필요, 별도 작업),
-        # Alloy를 트레이스 중계로 쓸 필요가 없음.
+        # 서버 간 트레이스는 각 서비스가 OTLP로 tempo.observability:4317에 직접 보내서
+        # Alloy를 안 거친다. 여기 tempo 목적지는 그것과 무관하게, 아래 faro.receiver가
+        # 받은 브라우저 트레이스를 Tempo로 보내기 위한 것이다(2026-09-17, Grafana Faro
+        # RUM 수집 1단계).
         cluster:
           name: petflow-dev
         collectors:
           alloy:
             presets: [filesystem-log-reader]
+            # Faro Web SDK가 보내는 브라우저 텔레메트리(에러/성능/트레이스)를 받는 입구.
+            # api_key는 아직 실제 시크릿이 없어서 비어있는 채로 시작 — 2단계(AWS Secrets
+            # Manager + ExternalSecret `faro-collector`)에서 실제 값을 채워 넣을 예정.
+            # 이 값이 비어있는 동안은 인증 없이 열려있는 상태이므로, 3단계(공개 노출)
+            # 전까지는 클러스터 내부에서만 접근 가능해 실질적 위험은 없다.
+            extraConfig: |
+              faro.receiver "app" {
+                server {
+                  listen_port          = 12347
+                  cors_allowed_origins = []
+                  api_key              = env("FARO_API_KEY")
+                }
+                output {
+                  logs   = [loki.write.loki.receiver]
+                  traces = [otelcol.exporter.otlp.tempo.input]
+                }
+              }
+            alloy:
+              extraPorts:
+                - name: faro
+                  port: 12347
+                  targetPort: 12347
+                  protocol: TCP
+              extraEnv:
+                - name: FARO_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: faro-collector
+                      key: FARO_API_KEY
         destinations:
           loki:
             type: loki
             url: http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push
+          tempo:
+            type: otlp
+            url: http://tempo.observability.svc.cluster.local:4317
+            protocol: grpc
         podLogsViaLoki:
           enabled: true
           destinations: ["loki"]
