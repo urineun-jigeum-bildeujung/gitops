@@ -1,0 +1,21 @@
+# Alloy(observability 네임스페이스)의 faro.receiver 인증키. auth-service의
+# jwt-rsa-private-key와 같은 패턴 — CNPG처럼 클러스터 안에 이미 있는 값을 복사해오는
+# provider.kubernetes가 아니라, 우리가 직접 생성해서 AWS Secrets Manager에 원본을 둔
+# 값이라 provider.aws(ClusterSecretStore, Pod Identity)로 가져온다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: faro-collector
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: faro-collector
+    creationPolicy: Owner
+  data:
+    - secretKey: FARO_API_KEY
+      remoteRef:
+        key: petflow/observability/faro-collector-api-key
