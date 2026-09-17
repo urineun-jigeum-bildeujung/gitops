@@ -5,7 +5,15 @@
 # architecture: standalone — 지금 규모(dev, 소규모 EKS 노드)에선 master+replica 구성이
 # 오버스펙이라 단일 인스턴스로 시작. 나중에 HA 필요해지면 replication으로 전환.
 # auth.enabled: false — 클러스터 내부에서만 접근하는 dev 환경이라 우선 비활성화.
-#   외부 노출 경로가 생기거나 운영 전환 시 재검토 필요.
+#   외부 노출 경로가 생기거나 운영 전환 시 재검토 필요. mTLS(tls.authClients)로 신원을
+#   확인하므로 비밀번호 인증까지 이중으로 걸 필요는 없다고 판단(2026-09-18).
+#
+# ⚠️ 주의: tls.enabled를 true로 바꾸면 기존 평문 6379 포트가 즉시 TLS 전용으로
+#   바뀐다(Bitnami 차트가 REDIS_TLS_PORT를 기존 포트와 동일 값으로 씀 — Kafka처럼
+#   새 포트를 열어 점진적으로 옮기는 방식이 아님). 그래서 이 값을 실제로 true로 바꿔
+#   머지하는 시점엔 order-service/auth-service의 spring.data.redis.ssl.* env(gitops-value)도
+#   같은 타이밍에 반영돼 있어야 한다 — 안 그러면 그 사이 장바구니/로그인 기능이 끊김.
+#   (redis-server-mtls-cert 자체는 platform/39-redis-cert가 이미 발급해 둔 상태, 2026-09-18)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -40,6 +48,17 @@ spec:
         architecture: standalone
         auth:
           enabled: false
+        # internal-ca-issuer로 발급한 서버 인증서(platform/39-redis-cert)를 그대로 연결.
+        # authClients 기본값이 true라 별도로 안 적어도 mTLS로 동작하지만, 의도를 명확히
+        # 남기려고 명시적으로 적어둔다. cert-manager Secret의 키 이름(tls.crt/tls.key/ca.crt)을
+        # certFilename 계열에 그대로 매핑하면 된다.
+        tls:
+          enabled: true
+          authClients: true
+          existingSecret: redis-server-mtls-cert
+          certFilename: tls.crt
+          certKeyFilename: tls.key
+          certCAFilename: ca.crt
         # 타임딜 Queue/구매 제어 후보까지 고려해 DEV에서도 재시작 후 데이터 복구가
         # 가능하도록 AOF + gp3 PVC를 사용한다. HA/replica는 현재 범위가 아니다.
         commonConfiguration: |-
