@@ -1,0 +1,65 @@
+# AWS Load Balancer Controller — ingressClassName: alb 인 Ingress를 AWS ALB/NLB로 조정한다.
+# IAM Role/Policy와 Pod Identity Association은 infra가 관리하고, 이 Application은
+# kube-system/aws-load-balancer-controller ServiceAccount와 Helm Release를 관리한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: aws-load-balancer-controller
+    repoURL: https://aws.github.io/eks-charts
+    targetRevision: "3.5.0"
+    helm:
+      releaseName: aws-load-balancer-controller
+      values: |
+        clusterName: petflow-eks
+        region: ap-northeast-2
+
+        # VPC ID는 destroy/apply마다 바뀌므로 Terraform 공통 태그로 동적 탐색한다.
+        # IMDS hop limit를 완화하거나 현재 VPC ID를 Git에 고정하지 않는다.
+        vpcTags:
+          Project: petflow
+          Environment: dev
+          Name: petflow-vpc
+
+        # DEV는 비용과 노드 자원을 아끼기 위해 1개로 운영한다.
+        replicaCount: 1
+
+        serviceAccount:
+          create: true
+          name: aws-load-balancer-controller
+          # EKS Pod Identity를 사용하므로 IRSA role-arn annotation은 추가하지 않는다.
+          annotations: {}
+
+        defaultTargetType: ip
+
+        # ingressClassName: alb 인 Ingress만 처리하며 ingress-nginx와 역할이 겹치지 않는다.
+        enableServiceMutatorWebhook: false
+
+        # ArgoCD의 오프라인 Helm 렌더링에서 자체 서명 인증서가 매번 바뀌지 않도록
+        # 선행 배포되는 cert-manager(sync-wave -10)가 Webhook TLS를 관리한다.
+        enableCertManager: true
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

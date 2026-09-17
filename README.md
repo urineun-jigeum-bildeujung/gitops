@@ -15,6 +15,7 @@ platform/
   05-namespaces/, 05-rbac/     네임스페이스, RBAC
   05-storageclass/             공용 gp3 + 자동 EBS Backup 태그가 있는 CNPG 전용 gp3-cnpg
   10-ingress-nginx/            클러스터 진입점
+  10-aws-load-balancer-controller/  alb Ingress를 AWS ALB/NLB로 연결 (EKS Pod Identity 사용)
   30-kube-prometheus-stack/, 30-loki/, 30-tempo/    관찰성 3종
   40-cnpg-operator/, 40-keda/, 40-external-secrets-operator/, 40-kafka-operator/,
   40-trivy-operator/                     오퍼레이터 5종 (trivy-operator는 이미지 취약점 스캔)
@@ -34,7 +35,8 @@ operations/
 ```
 
 폴더 이름의 숫자(`00-`, `05-`, `30-`...)는 사람이 읽을 때 배포 순서를 한눈에 알 수 있게 하는 표시일 뿐이고,
-실제 순서는 각 `application.yaml`의 `sync-wave` annotation이 강제한다.
+각 `application.yaml`의 `sync-wave` annotation은 같은 동기화 범위에서 순서를 조정한다. 서로 다른 상위
+Application/ApplicationSet 사이의 전역 순서는 보장하지 않으므로 복구 스크립트가 핵심 컴포넌트의 준비 상태를 별도로 확인한다.
 
 addon들은 별도 래퍼 Chart.yaml 없이 ArgoCD Application의 `source.chart` 필드로 외부 Helm 차트를 직접 참조한다.
 
@@ -45,11 +47,50 @@ aws eks update-kubeconfig --name petflow-eks --region ap-northeast-2
 task bootstrap
 ```
 
-`task bootstrap`이 ArgoCD 설치부터 `root-app.yaml` apply까지 한 번에 처리한다 (`task bootstrap:argocd`,
-`task bootstrap:root-app`으로 개별 실행도 가능). DEV 환경은 destroy/apply를 반복하는 설계라, 재구축할
-때마다 이 명령 하나만 다시 실행하면 된다.
+`task bootstrap`은 ArgoCD, Jenkins Credential, `root-app.yaml`을 모두 복구한다. Jenkins Git Credential
+생성에는 로그인된 GitHub CLI가 필요하다. Controller/ALB 같은 클러스터 핵심 경로만 복구할 때는 GitHub
+인증에 의존하지 않는 다음 명령을 사용한다.
+
+```bash
+task bootstrap:core
+```
+
+Jenkins Credential만 별도로 복구하려면 `gh auth status`가 성공하는 상태에서
+`task bootstrap:credentials`를 실행한다. 개별 단계는 `task bootstrap:argocd`,
+`task bootstrap:root-app`으로도 실행할 수 있다.
 
 커밋 전 검증은 `task validate` (Helm 차트 렌더링 + 전체 YAML 문법 검사).
+
+## AWS Load Balancer Controller
+
+`platform/10-aws-load-balancer-controller/application.yaml`이 공식 AWS EKS Helm Chart를 직접 참조한다.
+`platform/root.yaml`이 이 Application을 자동 탐색하므로 `task bootstrap:core` 이후 ArgoCD가 Controller를
+설치하고, `ingressClassName: alb`인 Web Ingress를 감지해 `petflow-dev-public` ALB를 생성한다.
+
+- GitOps 관리: Helm Release, Controller Deployment/Pod/Service, ServiceAccount, CRD와 Webhook
+- Infra 관리: IAM Role/Policy, EKS Pod Identity Association, Subnet Tag와 Network 조건
+- Pod Identity 계약: `kube-system/aws-load-balancer-controller` (IRSA annotation 사용 안 함)
+- 고정 설정: Chart `3.5.0`, Cluster `petflow-eks`, Region `ap-northeast-2`
+- VPC 탐색: `Project=petflow`, `Environment=dev`, `Name=petflow-vpc` 공통 태그 사용 (VPC ID 고정 안 함)
+- Webhook TLS: 선행 배포되는 cert-manager(sync-wave `-10`)가 인증서 발급·갱신
+- 배포 힌트: Controller sync-wave `-5`, 서비스 Application sync-wave `10`
+
+Sync Wave만으로 전체 Application의 절대 순서를 보장하지 않는다. `trestore.sh`가 Controller
+`Synced/Healthy`, Deployment Available, Certificate Ready와 Webhook Endpoint를 확인한 뒤 ALB 검증으로 진행한다.
+
+```bash
+kubectl get application aws-load-balancer-controller -n argocd
+kubectl get deployment,pod,service -n kube-system \
+  -l app.kubernetes.io/name=aws-load-balancer-controller
+kubectl get certificate,issuer -n kube-system
+kubectl get endpoints aws-load-balancer-webhook-service -n kube-system
+kubectl get crd | grep elbv2.k8s.aws
+kubectl get ingress -A -o wide
+```
+
+정상 기준은 Application `Synced/Healthy`, Controller Pod `Running/Ready`, Web Ingress `ADDRESS`에
+ALB DNS가 표시되는 상태다. `ingress-nginx`는 `ingressClassName: nginx`만 담당하므로 두 Controller는
+서로 대체하지 않고 함께 운영한다.
 
 ## 남은 것 / 알아둘 것
 
