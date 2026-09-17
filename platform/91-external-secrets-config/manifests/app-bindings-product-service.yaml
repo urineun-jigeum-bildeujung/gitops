@@ -52,3 +52,48 @@ spec:
       remoteRef:
         key: petflow-db-app
         property: password
+---
+# Kafka SASL 자격증명 + 브로커 신원 확인용 CA(2026-09-18). order-service와 동일한
+# 패턴 - kafka-users.yaml(2단계)이 kafka 네임스페이스에 만든 product-service Secret과
+# Kafka Cluster CA Secret을 가져온다.
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: kafka-secrets
+  namespace: product-service
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: kafka
+      server:
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: eso-db-reader
+          namespace: product-service
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kafka-credentials
+  namespace: product-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: kafka-secrets
+    kind: SecretStore
+  target:
+    name: kafka-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+      remoteRef:
+        key: product-service
+        property: sasl.jaas.config
+    - secretKey: ca.crt
+      remoteRef:
+        key: pet-subscription-kafka-cluster-ca-cert
+        property: ca.crt
