@@ -38,6 +38,12 @@ spec:
             # field/tracesToLogs). 2026-09-17: 7개 서비스에 LOGGING_PATTERN_LEVEL을 추가해서
             # 실제 로그에 찍히는 필드 이름이 OTel Java agent MDC 키 그대로인 trace_id(snake_case)
             # 인 걸 확인 — 기존 traceId(camelCase) 정규식은 매칭이 안 되는 상태였음.
+            #
+            # url의 $${__value.raw}는 $$가 맞다(오타 아님) — Grafana 프로비저닝 시스템은
+            # ${...}를 전부 "환경변수 치환 대상"으로 먼저 해석해버려서, ${__value.raw}를
+            # 그대로 쓰면 존재하지 않는 환경변수로 취급돼 빈 문자열로 치환됨(실제 Grafana
+            # API로 확인 — url이 ""로 저장돼 있었음). $$로 이스케이프해야 Explore가 런타임에
+            # 해석하는 ${__value.raw} 리터럴이 그대로 살아남는다.
             additionalDataSources:
               - name: Loki
                 type: loki
@@ -49,7 +55,7 @@ spec:
                     - datasourceUid: tempo
                       matcherRegex: "trace_id=(\\w+)"
                       name: TraceID
-                      url: "${__value.raw}"
+                      url: "$${__value.raw}"
               - name: Tempo
                 type: tempo
                 access: proxy
