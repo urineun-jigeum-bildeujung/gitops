@@ -35,9 +35,9 @@ spec:
               - loki
               - tempo
             # Loki/Tempo를 실제 데이터소스로 등록 + 로그<->트레이스 상호 연결(derived
-            # field/tracesToLogs). trace_id 매칭 정규식은 아직 어떤 서비스도 트레이스를
-            # 안 보내고 있어서 추정값 — 서비스에 OTel 계측 붙이는 작업(다음 단계) 끝나면
-            # 실제 로그 포맷 보고 재확인 필요.
+            # field/tracesToLogs). 2026-09-17: 7개 서비스에 LOGGING_PATTERN_LEVEL을 추가해서
+            # 실제 로그에 찍히는 필드 이름이 OTel Java agent MDC 키 그대로인 trace_id(snake_case)
+            # 인 걸 확인 — 기존 traceId(camelCase) 정규식은 매칭이 안 되는 상태였음.
             additionalDataSources:
               - name: Loki
                 type: loki
@@ -47,7 +47,7 @@ spec:
                 jsonData:
                   derivedFields:
                     - datasourceUid: tempo
-                      matcherRegex: "traceId=(\\w+)"
+                      matcherRegex: "trace_id=(\\w+)"
                       name: TraceID
                       url: "${__value.raw}"
               - name: Tempo
