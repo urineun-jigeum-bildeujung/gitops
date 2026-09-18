@@ -15,6 +15,12 @@
 # 이미 발견한 것과 같은 원인). 그대로 두면 카나리 대상 서비스만이 아니라 클러스터 전체
 # 서비스의 에러율을 보게 되어 자동 판단이 무의미해짐 — namespace는 서비스마다 실제로
 # 달라서 이 용도에 맞음.
+#
+# 분자에 `or vector(0)` 추가(2026-09-18, payment-service 실제 카나리 시연 중 발견) —
+# 5xx가 0건이면 sum(rate(...))가 0이 아니라 빈 결과(no data)를 반환하는 Prometheus
+# 특성 때문에, 정상 상태(에러 0건)일 때 오히려 "metric result is nil or empty" 에러로
+# AnalysisRun이 실패해 Rollout이 자동 중단(RolloutAborted)되는 버그가 있었음. 정상
+# 배포조차 통과 못 하는 상태였던 것.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -32,7 +38,7 @@ spec:
         prometheus:
           address: {{ .Values.canary.analysis.prometheusAddress }}
           query: |
-            sum(rate(http_server_requests_seconds_count{namespace="{{ .Release.Namespace }}",status=~"5.."}[5m]))
+            (sum(rate(http_server_requests_seconds_count{namespace="{{ .Release.Namespace }}",status=~"5.."}[5m])) or vector(0))
             /
             sum(rate(http_server_requests_seconds_count{namespace="{{ .Release.Namespace }}"}[5m]))
 {{- end }}
