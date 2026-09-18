@@ -92,6 +92,26 @@ kubectl get ingress -A -o wide
 ALB DNS가 표시되는 상태다. `ingress-nginx`는 `ingressClassName: nginx`만 담당하므로 두 Controller는
 서로 대체하지 않고 함께 운영한다.
 
+### Grafana·Prometheus Private 관리 도메인
+
+`platform/30-kube-prometheus-stack/manifests/ingress-internal.yaml`은 Grafana와 Prometheus에
+각각 Ingress를 만들되 `petflow-dev-management` IngressGroup을 공유한다. Controller는 Private
+Subnet에 Internal ALB 하나를 생성하며 HTTPS Listener의 인증서는 `*.leechs.shop` Host 기반으로
+탐색한다. ALB inbound CIDR은 VPC `10.0.0.0/20`으로 제한한다.
+
+| 서비스 | Tailscale 연결 후 주소 | Health Check |
+|---|---|---|
+| Grafana | `https://grafana.leechs.shop` | `/api/health` |
+| Prometheus | `https://prometheus.leechs.shop` | `/-/healthy` |
+
+두 Ingress의 `ADDRESS`는 동일해야 하며, ALB 이름은 `petflow-dev-management`, Scheme은
+`internal`이어야 한다. Route53 Alias는 Infra 저장소의 `dev-management-dns` 별도 State가
+관리한다. Public Internet 노출을 막기 위해 `internet-facing` 또는 `0.0.0.0/0`로 변경하지 않는다.
+
+```bash
+kubectl --context petflow-dev -n observability get ingress grafana-internal prometheus-internal -o wide
+```
+
 ## 남은 것 / 알아둘 것
 
 - 서비스별 이미지 태그·리소스 값은 별도 `gitops-value` 레포에서 관리한다. 이 레포는 공용 차트와
