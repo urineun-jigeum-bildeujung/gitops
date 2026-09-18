@@ -7,6 +7,12 @@ tasks:
       - task: validate:chart
       - task: validate:yaml
       - task: validate:network-policy
+      - task: validate:resource-duplicates
+
+  validate:resource-duplicates:
+    desc: 중복 YAML 키·리소스·환경변수·포트·볼륨·정책 규칙 검사
+    cmds:
+      - python3 tests/test_resource_duplicates.py
 
   validate:network-policy:
     desc: 내부 Ingress/Egress 허용·차단 경로 검증 — 인접 gitops-value 저장소 필요

@@ -32,7 +32,14 @@ spec:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
               env:
-                {{- toYaml (default $.Values.env .env) | nindent 16 }}
+                {{- $env := default $.Values.env .env }}
+                {{- if $env }}
+                {{- toYaml $env | nindent 16 }}
+                {{- end }}
+                {{- include "generic-service.externalEgressEnv" $ | nindent 16 }}
+                {{- if not (or $env $.Values.externalEgress.enabled) }}
+                []
+                {{- end }}
               resources:
                 {{- toYaml (default $.Values.resources .resources) | nindent 16 }}
 {{- end }}

@@ -1,0 +1,196 @@
+{{- if .Values.externalEgress.enabled }}
+{{- if not (and .Values.networkPolicy.enabled .Values.networkPolicy.namespaceDefaultDeny) }}
+{{- fail "externalEgress requires networkPolicy.enabled and namespaceDefaultDeny" }}
+{{- end }}
+{{- if not .Values.externalEgress.allowedDomains }}
+{{- fail "externalEgress.allowedDomains must not be empty" }}
+{{- end }}
+{{- range .Values.externalEgress.allowedDomains }}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$" .) }}
+{{- fail "externalEgress.allowedDomains accepts exact DNS names only" }}
+{{- end }}
+{{- if regexMatch "^[0-9.]+$" . }}
+{{- fail "externalEgress.allowedDomains must not contain IP literals" }}
+{{- end }}
+{{- end }}
+{{- range .Values.env }}
+{{- if has .name (list "JAVA_TOOL_OPTIONS" "NODE_OPTIONS" "NODE_USE_ENV_PROXY" "HTTP_PROXY" "HTTPS_PROXY" "NO_PROXY") }}
+{{- fail "externalEgress proxy environment is managed by the chart; remove duplicate env entries" }}
+{{- end }}
+{{- end }}
+{{- range .Values.cronJobs }}
+{{- range .env }}
+{{- if has .name (list "JAVA_TOOL_OPTIONS" "NODE_OPTIONS" "NODE_USE_ENV_PROXY" "HTTP_PROXY" "HTTPS_PROXY" "NO_PROXY") }}
+{{- fail "externalEgress proxy environment must not be duplicated in cronJobs.env" }}
+{{- end }}
+{{- end }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "generic-service.name" . }}-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+data:
+  squid.conf: |
+    http_port 3128
+    visible_hostname egress-proxy
+    acl CONNECT method CONNECT
+    acl tls_port port 443
+    # -n disables reverse DNS matching of IP-literal CONNECT requests.
+    acl allowed_domains dstdomain -n {{ join " " .Values.externalEgress.allowedDomains }}
+    acl private_dst dst 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 224.0.0.0/4 240.0.0.0/4 ::/128 ::1/128 fc00::/7 fe80::/10
+    http_access deny !CONNECT
+    http_access deny !tls_port
+    http_access deny !allowed_domains
+    http_access deny private_dst
+    http_access allow CONNECT tls_port allowed_domains
+    http_access deny all
+    cache deny all
+    cache_mem 8 MB
+    pinger_enable off
+    access_log stdio:/dev/stdout
+    cache_log /dev/stderr
+    cache_store_log none
+    logfile_rotate 0
+    pid_filename none
+    coredump_dir /tmp
+    shutdown_lifetime 1 seconds
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "generic-service.name" . }}-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  replicas: {{ .Values.externalEgress.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: egress-proxy
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: egress-proxy
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ toJson .Values.externalEgress.allowedDomains | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 13
+        runAsGroup: 13
+        fsGroup: 13
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: squid
+          image: {{ .Values.externalEgress.image | quote }}
+          command: ["/usr/sbin/squid"]
+          args: ["-N", "-f", "/etc/squid/squid.conf"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: proxy
+              containerPort: 3128
+          readinessProbe:
+            tcpSocket:
+              port: proxy
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: proxy
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.externalEgress.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/squid/squid.conf
+              subPath: squid.conf
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "generic-service.name" . }}-egress
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "generic-service.name" . }}-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  selector:
+    app.kubernetes.io/name: egress-proxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: proxy
+      port: 3128
+      targetPort: proxy
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "generic-service.name" . }}-egress-proxy
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: egress-proxy
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "generic-service.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 3128
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    # Only the trusted proxy can reach public IPv4:443; Squid checks CONNECT domains.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 0.0.0.0/8
+              - 10.0.0.0/8
+              - 100.64.0.0/10
+              - 127.0.0.0/8
+              - 169.254.0.0/16
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}
