@@ -4,8 +4,12 @@
 # 인증서(generic-service 차트의 mtls.enabled)를 Redis 접속에도 그대로 재사용할 수 있어서
 # 서버 인증서 하나만 여기서 새로 발급하면 된다.
 #
-# usages를 server auth만 넣은 이유: Redis standalone 구성에서 이 인스턴스는 다른 곳에
-# 클라이언트로 접속하지 않고 항상 서버 역할만 하므로 client auth는 불필요.
+# usages에 client auth도 넣는 이유(2026-09-18, 실제 CrashLoopBackOff로 발견):
+# tls.authClients: true가 켜지면 Bitnami 헬스체크 스크립트(redis-cli --tls ping)도
+# 자기 자신한테 "클라이언트"로 접속하면서 이 인증서를 그대로 제시한다 - server auth만
+# 있으면 그 자체 접속 시도가 "certificate verify failed"로 거부되어 헬스체크가 계속
+# 실패하고 kubelet이 SIGTERM으로 죽여서 CrashLoopBackOff에 빠짐. 애초에 "다른 서비스한테
+# 클라이언트로 안 나간다"는 가정 자체가 로컬 헬스체크 케이스를 놓친 것.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -24,6 +28,7 @@ spec:
     size: 256
   usages:
     - server auth
+    - client auth
   issuerRef:
     name: internal-ca-issuer
     kind: ClusterIssuer
