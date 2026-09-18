@@ -1,7 +1,8 @@
-# payment-service가 CNPG(petflow-db, database 네임스페이스)의 DB 접속 정보를 받아오는 바인딩.
-# order-service/product-service와 동일 패턴 - 공용 app DB를 그대로 씀(서비스별 DB 분리 아님).
-# sever #77(결제 API 구현) 머지로 payment-service가 실제 배포됐는데, 이 바인딩이 없어서
-# SPRING_DATASOURCE_*/internal.gateway-secret을 못 찾아 부팅 크래시했음(2026-09-18).
+# payment-service의 DB/gateway-secret/Kafka SASL 바인딩 전부 - order-service/product-service와
+# 동일 패턴(공용 app DB, 공유 gateway-secret 임시값, Kafka SASL 자격증명).
+# sever #77(결제 API 구현) 머지로 payment-service가 실제 배포됐는데, DB/gateway-secret
+# 바인딩이 없어서 부팅 크래시했음(2026-09-18) - 이후 Kafka SASL 6단계 준비로 kafka
+# 바인딩도 같이 추가.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -73,3 +74,49 @@ spec:
     - secretKey: INTERNAL_GATEWAY_SECRET
       remoteRef:
         key: petflow/internal/gateway-secret
+---
+# Kafka SASL 자격증명 + 브로커 신원 확인용 CA(2026-09-18). order-service/product-service와
+# 동일 패턴 - kafka-users.yaml이 kafka 네임스페이스에 만든 payment-service Secret과
+# Kafka Cluster CA Secret을 그대로 가져온다. eso-db-reader ServiceAccount는 위에서
+# 이미 만들어져 있어 재사용.
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: kafka-secrets
+  namespace: payment-service
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: kafka
+      server:
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: eso-db-reader
+          namespace: payment-service
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kafka-credentials
+  namespace: payment-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: kafka-secrets
+    kind: SecretStore
+  target:
+    name: kafka-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+      remoteRef:
+        key: payment-service
+        property: sasl.jaas.config
+    - secretKey: ca.crt
+      remoteRef:
+        key: pet-subscription-kafka-cluster-ca-cert
+        property: ca.crt
