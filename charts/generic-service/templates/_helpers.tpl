@@ -55,3 +55,31 @@ Map<String,...> 동적 키라, 환경변수(SystemEnvironmentPropertySource)가 
   value: "file:/etc/mtls/ca.crt"
 {{- end }}
 {{- end -}}
+
+{{/*
+Kafka SASL/SCRAM-SHA-512 활성화 시 주입하는 공통 env.
+platform/91-external-secrets-config가 kafka 네임스페이스의 KafkaUser 자격증명을
+같은 이름(kafka-credentials)의 로컬 Secret으로 미리 복사해뒀다고 가정한다 - Secret
+이름/키가 여기와 정확히 일치해야 함. 트러스트스토어(ca.crt)는 kafka-clients가
+PEM 포맷을 파일 경로로 직접 지원해서(ssl.truststore.type=PEM) 별도 변환 불필요.
+
+이 env를 실제로 읽어서 Kafka Producer/Consumer 설정에 반영하는 건 각 서비스의
+KafkaProducerConfig/KafkaConsumerConfig(sever 레포) 코드 몫 - 여기선 배선만 한다.
+*/}}
+{{- define "generic-service.kafkaSaslEnv" -}}
+{{- if .Values.kafka.sasl.enabled }}
+- name: SPRING_KAFKA_SECURITY_PROTOCOL
+  value: "SASL_SSL"
+- name: SPRING_KAFKA_PROPERTIES_SASL_MECHANISM
+  value: "SCRAM-SHA-512"
+- name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+  valueFrom:
+    secretKeyRef:
+      name: kafka-credentials
+      key: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+- name: SPRING_KAFKA_SSL_TRUST_STORE_LOCATION
+  value: "/etc/kafka-tls/ca.crt"
+- name: SPRING_KAFKA_SSL_TRUST_STORE_TYPE
+  value: "PEM"
+{{- end }}
+{{- end -}}

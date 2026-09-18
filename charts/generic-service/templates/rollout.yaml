@@ -36,19 +36,37 @@ spec:
             {{- toYaml .Values.env | nindent 12 }}
             {{- end }}
             {{- include "generic-service.mtlsEnv" . | nindent 12 }}
-          {{- if .Values.mtls.enabled }}
+            {{- include "generic-service.kafkaSaslEnv" . | nindent 12 }}
+          {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
           volumeMounts:
+            {{- if .Values.mtls.enabled }}
             - name: mtls-cert
               mountPath: /etc/mtls
               readOnly: true
+            {{- end }}
+            {{- if .Values.kafka.sasl.enabled }}
+            - name: kafka-truststore
+              mountPath: /etc/kafka-tls
+              readOnly: true
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- if .Values.mtls.enabled }}
+      {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
       volumes:
+        {{- if .Values.mtls.enabled }}
         - name: mtls-cert
           secret:
             secretName: {{ include "generic-service.name" . }}-mtls-cert
+        {{- end }}
+        {{- if .Values.kafka.sasl.enabled }}
+        - name: kafka-truststore
+          secret:
+            secretName: kafka-credentials
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
       {{- end }}
   strategy:
     {{- if .Values.canary.enabled }}

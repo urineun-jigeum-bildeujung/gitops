@@ -82,6 +82,14 @@ networkPolicy:
 mtls:
   enabled: false
 
+# Kafka SASL/SCRAM-SHA-512. true로 켜면 kafka-credentials ExternalSecret(플랫폼
+# 91-external-secrets-config가 미리 배달해둔 것)의 자격증명/CA를 마운트·주입한다.
+# 접속 주소(SPRING_KAFKA_BOOTSTRAP_SERVERS)는 이 플래그와 무관하게 서비스별
+# env에서 직접 지정 - Kafka를 쓰는 서비스가 지금은 2개뿐이라 굳이 여기서 고정하지 않음.
+kafka:
+  sasl:
+    enabled: false
+
 env: []
   # - name: EXAMPLE_ENV
   #   value: "example"
