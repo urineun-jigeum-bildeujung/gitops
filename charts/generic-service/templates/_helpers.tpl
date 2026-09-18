@@ -25,6 +25,13 @@ deployment.yaml/rollout.yaml 둘 다 수정하는 실수(하나만 고치고 하
 - SERVER_PORT를 8443(mTLS 전용)으로 바꾸고, 기존 service.targetPort(8080)는
   MANAGEMENT_SERVER_PORT로 돌려서 헬스체크/Prometheus 스크랩은 그대로 평문 유지.
 - SPRING_SSL_BUNDLE_PEM_* 는 certificate.yaml이 만든 Secret을 파일로 마운트한 경로를 가리킴.
+
+번들 이름은 "internalmtls"(하이픈 없음)로 고정한다 — spring.ssl.bundle.pem.<이름>은
+Map<String,...> 동적 키라, 환경변수(SystemEnvironmentPropertySource)가 "_"를 "."로
+변환할 때 "internal-mtls"의 하이픈이 두 단계 경로("internal" + "mtls")로 잘못
+쪼개져서 NoSuchSslBundleException이 남(2026-09-18 실제 Pod 크래시로 발견). 고정된
+스키마 프로퍼티(예: context-path)는 relaxed binding이 하이픈을 복원해주지만, 맵의
+동적 키는 그 복원이 안 되는 Spring Boot의 알려진 한계라 아예 구분자 없는 이름으로 우회.
 */}}
 {{- define "generic-service.mtlsEnv" -}}
 {{- if .Values.mtls.enabled }}
@@ -39,12 +46,12 @@ deployment.yaml/rollout.yaml 둘 다 수정하는 실수(하나만 고치고 하
 - name: SERVER_SSL_CLIENT_AUTH
   value: "need"
 - name: SERVER_SSL_BUNDLE
-  value: "internal-mtls"
-- name: SPRING_SSL_BUNDLE_PEM_INTERNAL_MTLS_KEYSTORE_CERTIFICATE
+  value: "internalmtls"
+- name: SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_KEYSTORE_CERTIFICATE
   value: "file:/etc/mtls/tls.crt"
-- name: SPRING_SSL_BUNDLE_PEM_INTERNAL_MTLS_KEYSTORE_PRIVATE_KEY
+- name: SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_KEYSTORE_PRIVATE_KEY
   value: "file:/etc/mtls/tls.key"
-- name: SPRING_SSL_BUNDLE_PEM_INTERNAL_MTLS_TRUSTSTORE_CERTIFICATE
+- name: SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_TRUSTSTORE_CERTIFICATE
   value: "file:/etc/mtls/ca.crt"
 {{- end }}
 {{- end -}}
