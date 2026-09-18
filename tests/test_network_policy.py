@@ -16,6 +16,7 @@ CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
 DB_CLIENTS = set(API_PORTS) - {"notification-service"}
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
+EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service", "web"}
 
 
 def read_yaml(path):
@@ -100,7 +101,7 @@ class NetworkPolicyTests(unittest.TestCase):
     def setUpClass(cls):
         cls.rendered = {s: render(s, VALUES / s / "values.yaml") for s in list(API_PORTS) + ["web"]}
         cls.service_policies = {s: next(p for p in policies(docs)
-            if p["spec"]["podSelector"]) for s, docs in cls.rendered.items()}
+            if p["metadata"]["name"] == "generic-service") for s, docs in cls.rendered.items()}
         cls.db = read_yaml(ROOT / "platform/60-cnpg-cluster/manifests/networkpolicy.yaml")[0]
         app = read_yaml(ROOT / "platform/40-redis/application.yaml")[0]
         cls.redis_values = yaml.safe_load(app["spec"]["source"]["helm"]["values"])
@@ -118,7 +119,7 @@ class NetworkPolicyTests(unittest.TestCase):
 
     def test_namespace_default_deny_and_exact_service_selectors(self):
         for s, docs in self.rendered.items():
-            self.assertEqual(len(policies(docs)), 2)
+            self.assertEqual(len(policies(docs)), 3 if s in EXTERNAL_CLIENTS else 2)
             policy = self.service_policies[s]
             self.assertEqual(policy["metadata"]["namespace"], s)
             self.assertEqual(policy["spec"]["podSelector"]["matchLabels"], service_labels(s))
@@ -177,12 +178,76 @@ class NetworkPolicyTests(unittest.TestCase):
         for s, policy in self.service_policies.items():
             for address in ["10.0.4.5", "172.20.10.10", "192.168.1.1", "100.73.67.72", "169.254.169.254"]:
                 self.assertFalse(permits(policy, "unknown", {}, 443, "egress", ip=address))
-            # External destination/port restrictions are intentionally deferred.
+            # Application Pods cannot reach public IPs directly, including HTTPS.
             for port in [80, 443, 9999]:
-                self.assertTrue(permits(policy, "external", {}, port, "egress", ip="203.0.113.10"))
+                self.assertFalse(permits(policy, "external", {}, port, "egress", ip="203.0.113.10"))
             self.assertEqual(permits(policy, "kube-system", {}, 80, "egress", ip="169.254.170.23"),
                              s in {"member-service", "review-service"})
             self.assertFalse(permits(policy, "kube-system", {}, 443, "egress", ip="169.254.170.23"))
+
+    def test_external_proxy_is_service_specific_and_cannot_reach_private_ips(self):
+        for s, docs in self.rendered.items():
+            app = self.service_policies[s]
+            proxy_labels = labels("egress-proxy", "dev-" + s)
+            self.assertEqual(permits(app, s, proxy_labels, 3128, "egress"), s in EXTERNAL_CLIENTS)
+            self.assertFalse(permits(app, "unrelated", proxy_labels, 3128, "egress"))
+            if s not in EXTERNAL_CLIENTS:
+                continue
+            proxy = next(p for p in policies(docs) if p["metadata"]["name"].endswith("-egress-proxy"))
+            self.assertTrue(permits(proxy, s, service_labels(s), 3128))
+            self.assertFalse(permits(proxy, s, service_labels("unrelated"), 3128))
+            self.assertFalse(permits(proxy, "unrelated", service_labels(s), 3128))
+            self.assertTrue(permits(proxy, "external", {}, 443, "egress", ip="203.0.113.10"))
+            self.assertFalse(permits(proxy, "external", {}, 80, "egress", ip="203.0.113.10"))
+            for address in ["10.0.4.5", "172.20.10.10", "100.73.67.72", "169.254.169.254"]:
+                self.assertFalse(permits(proxy, "unknown", {}, 443, "egress", ip=address))
+            config = next(d["data"]["squid.conf"] for d in docs if d["kind"] == "ConfigMap"
+                          and "squid.conf" in d.get("data", {}))
+            expected = {
+                "auth-service": ["kauth.kakao.com", "kapi.kakao.com", "www.googleapis.com"],
+                "payment-service": ["api.tosspayments.com"],
+                "member-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
+                "review-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
+                "web": ["business.juso.go.kr", "image.leechs.shop"],
+            }[s]
+            self.assertIn("acl allowed_domains dstdomain -n " + " ".join(expected) + "\n", config)
+            self.assertIn("http_access deny !CONNECT", config)
+            self.assertIn("http_access deny !tls_port", config)
+            self.assertIn("http_access deny !allowed_domains", config)
+            workload = next(d for d in docs if d["kind"] in ["Deployment", "Rollout"]
+                            and d["metadata"]["name"] == "generic-service")
+            env = {e["name"]: e.get("value") for e in workload["spec"]["template"]["spec"]["containers"][0]["env"]}
+            if s == "web":
+                self.assertEqual(env["NODE_OPTIONS"], "--use-env-proxy")
+                self.assertEqual(env["NODE_USE_ENV_PROXY"], "1")
+                self.assertIn("generic-service-egress.web.svc.cluster.local:3128", env["HTTPS_PROXY"])
+            else:
+                self.assertIn("-Dhttps.proxyHost=generic-service-egress." + s, env["JAVA_TOOL_OPTIONS"])
+                self.assertIn("169.254.170.23", env["JAVA_TOOL_OPTIONS"])
+
+    def test_proxy_env_is_present_in_rollouts_and_batch_jobs(self):
+        for setting in ["canary.enabled=true", "blueGreen.enabled=true"]:
+            docs = render("auth-service", VALUES / "auth-service/values.yaml", [setting])
+            rollout = next(d for d in docs if d["kind"] == "Rollout")
+            env = rollout["spec"]["template"]["spec"]["containers"][0]["env"]
+            self.assertTrue(any(e["name"] == "JAVA_TOOL_OPTIONS" for e in env))
+        # No ordinary env: the proxy env must still form a valid YAML list.
+        docs = render(settings=["networkPolicy.enabled=true", "networkPolicy.namespaceDefaultDeny=true",
+            "externalEgress.enabled=true", "externalEgress.allowedDomains[0]=example.com",
+            "cronJobs[0].name=check", "cronJobs[0].schedule=0 * * * *"])
+        job = next(d for d in docs if d["kind"] == "CronJob")
+        env = job["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]["env"]
+        self.assertEqual([e["name"] for e in env], ["JAVA_TOOL_OPTIONS"])
+
+    def test_proxy_rejects_wildcards_and_missing_isolation(self):
+        base = ["helm", "template", "check", str(CHART), "--set", "externalEgress.enabled=true"]
+        for settings in [[], ["networkPolicy.enabled=true", "networkPolicy.namespaceDefaultDeny=true",
+                "externalEgress.allowedDomains[0]=*.amazonaws.com"],
+                ["networkPolicy.enabled=true", "networkPolicy.namespaceDefaultDeny=true",
+                 "externalEgress.allowedDomains[0]=1.2.3.4"]]:
+            cmd = base + [arg for setting in settings for arg in ["--set", setting]]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            self.assertNotEqual(result.returncode, 0)
 
     def test_metrics_logs_traces_queries_and_rollouts(self):
         for s in API_PORTS:
@@ -226,7 +291,7 @@ class NetworkPolicyTests(unittest.TestCase):
     def test_policy_matches_deployment_and_rollout_pods(self):
         for settings in [[], ["canary.enabled=true"], ["blueGreen.enabled=true"]]:
             docs = render("product-service", VALUES / "product-service/values.yaml", settings)
-            policy = next(p for p in policies(docs) if p["spec"]["podSelector"])
+            policy = next(p for p in policies(docs) if p["metadata"]["name"] == "generic-service")
             workload = next(x for x in docs if x["kind"] in ["Deployment", "Rollout"])
             self.assertTrue(labels_match(policy["spec"]["podSelector"],
                                          workload["spec"]["template"]["metadata"]["labels"]))

@@ -8,11 +8,41 @@
 Kafka는 Strimzi가 생성하는 리스너 정책 자체를 좁힌다. 플랫폼 Egress, ArgoCD, Jenkins,
 kube-system, Operator 등 전체 클러스터의 기본 차단은 이번 범위가 아니다.
 
-**외부 Egress allowlist는 아직 완료되지 않았다.** 서비스 Pod의 공인 IPv4 목적지는
-모든 포트를 임시 허용한다. RFC1918, CGNAT, 링크로컬, 루프백 등의 주소는 제외하여
-이 예외로 내부 차단을 우회하지 못하게 한다. OAuth, Toss, 주소 API, S3/CloudFront가
-이 단계에서 새로 차단되지 않도록 유지한다. 이후 외부 목적지 제한은 별도 설계·검증한다.
-공인 ALB/외부 프록시를 통한 간접 호출 및 hostNetwork/노드 트래픽까지 막는 최종 경계는 아니다.
+외부 Egress는 서비스별 HTTPS CONNECT 프록시를 거치도록 구성한다. 애플리케이션 Pod의
+공인 IPv4 전체 허용 예외를 제거하고, 자기 Namespace의 전용 프록시 Pod TCP 3128만
+추가 허용한다. 프록시의 수신 정책은 같은 서비스의 정확한 Pod 라벨만 허용한다.
+프록시는 CoreDNS와 공인 IPv4 TCP 443만 접근할 수 있으며, Squid가 서비스별 정확한
+CONNECT 호스트명을 검사한다. 공인 IPv4 전체 예외가 남는 곳은 전용 프록시뿐이다.
+
+| 서비스 | 프록시가 허용하는 도메인 |
+| --- | --- |
+| auth | kauth.kakao.com, kapi.kakao.com, www.googleapis.com |
+| payment | api.tosspayments.com |
+| member / review | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com |
+| web | business.juso.go.kr, image.leechs.shop |
+| product / order / notification | 프록시 및 직접 인터넷 예외 없음 |
+
+member/review S3와 web CDN은 예정된 연결도 포함한 목록이다. S3 prefix는 IAM으로
+분리한다. 푸시/SMS 제공자 미정 기능에는 외부 예외를 추가하지 않는다.
+근거와 구현 상태는 [외부 연결 목록](external-egress-inventory.md)을 참고한다.
+
+프록시는 서비스별 2개 replica로 배포되며 자격 증명/ServiceAccount token을 받지 않는다.
+이미지는 로컬 검증한 Ubuntu Squid digest로 고정한다. CA 추가나 TLS 복호화는 하지 않으며,
+클라이언트가 원격 인증서를 검증한다. 이 구성은 CONNECT 요청의 목적지 호스트명을 검사한다.
+TLS 내부 SNI/HTTP Host, URL 경로, 업로드 내용을 검사하지 않는다. 허용된 외부 서비스의
+악용이나 같은 목적지의 domain fronting까지 차단하는 L7 통제는 별도 범위다.
+공인 ALB/내부 서비스가 대신 호출하는 간접 경로 및 hostNetwork/노드 트래픽도 별도 경계다.
+
+Java는 JAVA_TOOL_OPTIONS의 HTTP/HTTPS proxy system property를 사용한다. 현재 auth의
+기본 OAuth HTTP client와 payment의 JDK HttpClient에 적용되며, 내부 *.svc.cluster.local,
+*.svc, localhost와 169.254.170.23은 직접 연결한다. 추후 HTTP client/SDK를 바꾸면서
+기본 ProxySelector/system property를 무시하면 해당 client에 프록시를 직접 설정해야 한다.
+직접 인터넷 fallback은 정책으로 차단되므로 이런 변경은 연결 실패로 나타난다.
+Node는 NODE_OPTIONS=--use-env-proxy와 HTTP_PROXY/HTTPS_PROXY/NO_PROXY를 주입한다.
+Node >=22.21.0이 필요하다. 구버전은 지원하지 않는 flag로 기동 실패하므로 배포 전에
+실제 web 이미지의 Node 버전을 확인하고 필요하면 재빌드한다.
+새 기능의 S3 SDK는 리전/버킷 endpoint와 proxy/bypass 설정을 함께 검증한다.
+프록시 설정 변수는 차트가 관리하며 values.env에 중복 선언하면 렌더링 실패한다.
 
 ## 허용 경로
 
@@ -66,28 +96,38 @@ Public ALB는 10.0.0.0/24, 10.0.1.0/24, Internal ALB는 10.0.4.0/22, 10.0.8.0/22
 NetworkPolicy 권한은 합집합이다. Redis 기본 broad 정책은 enabled=false로 제거하고,
 동일 Helm release의 extraDeploy에서 제한된 정책을 생성한다. Kafka의 두 리스너에
 networkPolicyPeers를 설정해 기존 9092/9093 전체 허용을 없앤다.
-mTLS/SASL 설정, 서비스 환경변수, 이미지 태그, Terraform은 변경하지 않는다.
+mTLS/SASL 설정, 이미지 태그, Terraform은 변경하지 않는다. 외부 호출 서비스에만 프록시 환경변수를 추가한다.
 standard 모드에서는 신규 Pod의 정책 반영 전 잠시 default-allow 구간이 있을 수 있다.
 
 ## PR 및 배포 순서
 
-1. gitops PR을 먼저 main에 머지한다. 기본 차트 enabled=false이지만 **플랫폼 DB/Redis/Kafka/
-   관측성 정책은 이 머지부터 활성화된다.** 현재 애플리케이션 라벨의 정상 경로를 미리 포함했다.
-2. 플랫폼 정상 상태를 확인하고 gitops-value PR을 머지해 서비스 8개의 정책을 활성화한다.
-3. ArgoCD 자동 동기화 후 서비스 정책 16개(서비스 허용 8+Namespace 기본 차단 8),
-   DB 1개, Redis 대체 정책 1개, 관측성 7개 및 Strimzi 생성 정책을 확인한다.
-4. 허용/차단, 로그/메트릭/트레이스, S3 SDK 자격 증명 및 업로드/태그 변경을 검증한다.
-5. 성공 확인 후 외부 목적지 Egress 제어 단계로 진행한다.
+1. 로컬에서 두 저장소를 같은 부모 디렉터리에 두고 gitops에서 task validate를 실행한다.
+   실제 web 이미지의 Node >=22.21.0 여부와 Java client의 proxy/bypass 동작을 확인한다.
+2. gitops 차트 변경을 먼저 main에 머지한다. externalEgress의 기본값은 false이므로
+   기존 values의 동작은 유지한다. gitops-value만 먼저 머지하면 인터넷 예외는 제거되지만
+   구차트에는 프록시가 없어 외부 호출이 실패한다.
+3. gitops-value를 머지한다. proxy 정책/ConfigMap/Service wave -4, proxy Deployment -3,
+   앱 허용 정책 -2, Namespace 기본 차단 -1, 앱 workload 0 순서로 동기화한다.
+   앱의 프록시 env 변경으로 앱 Pod가 교체된다. 프록시가 준비되지 않으면 다음 wave를 기다린다.
+4. 서비스 정책 21개(앱 허용 8+Namespace 기본 차단 8+프록시 정책 5)와 프록시 5개
+   Deployment/10개 Pod를 확인한다. 기존 DB/Redis/Kafka/관측성 정책도 유지되는지 확인한다.
+5. 실제 CNI에서 내부 API/DB/Redis/Kafka/DNS/Tempo 및 Pod Identity 통신을 검증한다.
+   자기 프록시의 허용 도메인 연결, 다른 도메인/다른 서비스 프록시/IP-literal/잘못된 포트
+   차단, 앱 Pod의 직접 공인 IP:443 차단을 검사한다. OAuth/Toss/Juso 키를 정상 주입한
+   기능 테스트도 필요하다. 예정된 S3/이미지 API 구현 시 업로드 확인/태그 변경/CDN을 검증한다.
 
-로컬에서는 두 저장소를 같은 부모 디렉터리에 두고 gitops에서 task validate를 실행한다.
 테스트는 Helm 렌더링/YAML/정적 허용 규칙 검증이며 실제 CNI 집행 검증을 대신하지 않는다.
-배포 전 기준: auth/order Prometheus 대상은 HTTP/TLS 불일치로 DOWN,
-member는 DB 초기화/Pod 기동 문제로 DOWN이었다. 정책으로 새로 발생한 장애와 구분한다.
-Gateway의 실제 호출은 배포 후 별도로 확인한다. 이번 작업에서 클러스터에 직접 적용하지 않는다.
+로컬 Docker에서 비루트/read-only Squid 설정 파싱, 허용 Google 연결 및 다른 도메인/IP/
+HTTP/포트 차단을 확인했다. Java 기본 JDK HttpClient/URLConnection 및 Node 기본 fetch의 프록시 연결과 차단을 검증했다.
+배포 전 기존 장애와 정책으로 새로 발생한 장애를 구분한다. 이번 작업은 저장소 파일 수정이며
+클러스터에는 직접 적용하지 않는다.
 
 ## 롤백
 
-서비스 문제는 gitops-value의 해당 networkPolicy.enabled=false로 되돌리는 PR을 머지한다.
+외부 호출 문제는 해당 서비스의 이번 values 변경(인터넷 예외 제거 및 externalEgress 설정)을 함께
+되돌린다. externalEgress.enabled=false만 설정하면 직접 인터넷은 계속 차단된다.
+전체 서비스 정책을 해제하려면 externalEgress.enabled=false와 networkPolicy.enabled=false를
+함께 설정한다. externalEgress는 Namespace 기본 차단과 앱 정책을 필수로 요구한다.
 이렇게 해야 서비스 허용 정책과 Namespace 기본 차단이 **둘 다** 제거된다.
 Namespace 기본 차단만 남긴 채 서비스 허용 정책만 삭제하면 서비스가 차단된다.
 
@@ -102,3 +142,8 @@ Kafka networkPolicyPeers 제거가 대상이다. 서비스 enabled=false만으�
 - AWS CNI Service selector 제약: https://github.com/aws/amazon-network-policy-controller-k8s#considerations
 - Strimzi 0.45.2 listener networkPolicyPeers: https://strimzi.io/docs/operators/0.45.2/configuring
 - CNPG Operator/DB 포트: https://cloudnative-pg.io/docs/devel/networking/
+
+- [Squid ACL 공식 문서](https://www.squid-cache.org/Doc/config/acl/)
+- [Ubuntu Squid 이미지](https://hub.docker.com/r/ubuntu/squid)
+- [Java 기본 ProxySelector](https://docs.oracle.com/en/java/javase/21/docs/api/java.net.http/java/net/http/HttpClient.Builder.html)
+- [Node 22.21.0 proxy 옵션](https://nodejs.org/download/release/v22.21.0/docs/api/cli.html#--use-env-proxy)

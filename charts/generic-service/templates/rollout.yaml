@@ -35,6 +35,7 @@ spec:
             {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
             {{- end }}
+            {{- include "generic-service.externalEgressEnv" . | nindent 12 }}
             {{- include "generic-service.mtlsEnv" . | nindent 12 }}
             {{- include "generic-service.kafkaSaslEnv" . | nindent 12 }}
           {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}

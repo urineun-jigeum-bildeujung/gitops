@@ -83,3 +83,26 @@ KafkaProducerConfig/KafkaConsumerConfig(sever 레포) 코드 몫 - 여기선 배
   value: "PEM"
 {{- end }}
 {{- end -}}
+
+{{- define "generic-service.externalEgressEnv" -}}
+{{- if .Values.externalEgress.enabled }}
+{{- $proxyHost := printf "%s-egress.%s.svc.cluster.local" (include "generic-service.name" .) .Release.Namespace }}
+{{- if eq .Values.externalEgress.runtime "java" }}
+- name: JAVA_TOOL_OPTIONS
+  value: {{ printf "-Dhttp.proxyHost=%s -Dhttp.proxyPort=3128 -Dhttps.proxyHost=%s -Dhttps.proxyPort=3128 -Dhttp.nonProxyHosts=localhost|127.*|[::1]|*.svc|*.svc.cluster.local|169.254.170.23" $proxyHost $proxyHost | quote }}
+{{- else if eq .Values.externalEgress.runtime "node" }}
+- name: NODE_OPTIONS
+  value: "--use-env-proxy"
+- name: NODE_USE_ENV_PROXY
+  value: "1"
+- name: HTTP_PROXY
+  value: {{ printf "http://%s:3128" $proxyHost | quote }}
+- name: HTTPS_PROXY
+  value: {{ printf "http://%s:3128" $proxyHost | quote }}
+- name: NO_PROXY
+  value: "localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23"
+{{- else }}
+{{- fail "externalEgress.runtime must be java or node" }}
+{{- end }}
+{{- end }}
+{{- end -}}
