@@ -60,6 +60,9 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: petflow-db-backups
+        # initdb로 재생성할 때마다 새 PostgreSQL systemID로 변경한다.
+        # 이전 DB의 WAL/base backup과 같은 archive를 공유하지 않는다.
+        serverName: petflow-db-7686679137262796820
 ---
 # sever/local-infra/postgres/init.sql 및 각 서비스 application 설정과 같은 DB 경계다.
 apiVersion: postgresql.cnpg.io/v1
