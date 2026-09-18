@@ -22,7 +22,7 @@ spec:
         name: barman-cloud.cloudnative-pg.io
         parameters:
           barmanObjectName: petflow-db-backups
-          serverName: petflow-db
+          serverName: petflow-db-7686679137262796820
 
   storage:
     storageClass: gp3-cnpg
