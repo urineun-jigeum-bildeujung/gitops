@@ -102,3 +102,39 @@ spec:
     - secretKey: INTERNAL_GATEWAY_SECRET
       remoteRef:
         key: petflow/internal/gateway-secret
+---
+# 카카오/구글 OAuth2 실제 client-id/secret(2026-09-18). 기존 placeholder-*
+# 더미값(2026-09-18 크래시 해소용)을 실제 앱 등록값으로 교체 - gateway-secret과
+# 같은 provider.aws/ClusterSecretStore 방식. petflow/auth-service/oauth2-kakao,
+# petflow/auth-service/oauth2-google 둘 다 {client-id, client-secret} 형태의
+# JSON 시크릿이라 property로 개별 필드를 뽑아온다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: oauth2-credentials
+  namespace: auth-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: oauth2-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: KAKAO_CLIENT_ID
+      remoteRef:
+        key: petflow/auth-service/oauth2-kakao
+        property: client-id
+    - secretKey: KAKAO_CLIENT_SECRET
+      remoteRef:
+        key: petflow/auth-service/oauth2-kakao
+        property: client-secret
+    - secretKey: GOOGLE_CLIENT_ID
+      remoteRef:
+        key: petflow/auth-service/oauth2-google
+        property: client-id
+    - secretKey: GOOGLE_CLIENT_SECRET
+      remoteRef:
+        key: petflow/auth-service/oauth2-google
+        property: client-secret
