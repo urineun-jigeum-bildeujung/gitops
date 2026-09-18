@@ -49,6 +49,17 @@ spec:
         port: 9092
         type: internal
         tls: false
+      # 서비스 간 통신 암호화/인증(2026-09-18). SASL/SCRAM-SHA-512를 골랐다 - order-service/
+      # product-service 딱 2개만 Kafka를 쓰는 상황이라 mTLS보다 배선이 단순함(개인 키스토어
+      # 파일 관리가 없고, Strimzi가 만들어주는 sasl.jaas.config 문자열을 그대로 씀).
+      # 평문 9092는 이전 기간 동안 그대로 남겨둔다 - Kafka는 Redis와 달리 여러 리스너를
+      # 동시에 열어둘 수 있어서, 서비스를 하나씩 9093으로 옮긴 뒤 검증되면 plain을 지우면 됨.
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: scram-sha-512
     config:
       offsets.topic.replication.factor: 1
       transaction.state.log.replication.factor: 1
