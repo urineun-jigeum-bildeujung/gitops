@@ -1,6 +1,8 @@
 # Kafka 서비스 간 통신 인증(SASL/SCRAM-SHA-512, 2026-09-18). 실제로 Kafka를 쓰는
-# order-service/product-service 2개 서비스에만 KafkaUser를 발급한다(sever 코드로 직접
-# 확인 - 나머지 서비스는 아직 Kafka 코드 자체가 없음).
+# order-service/product-service/payment-service 3개 서비스에만 KafkaUser를 발급한다
+# (sever 코드로 직접 확인 - 나머지 서비스는 아직 Kafka 코드 자체가 없음).
+# payment-service는 sever #77(결제 API)에서 spring-kafka 의존성이 추가되면서
+# Producer 전용으로 새로 편입됨(2026-09-18).
 #
 # 이 CR을 적용하면 Strimzi User Operator(kafka.yaml의 entityOperator.userOperator로
 # 이미 켜져 있음)가:
@@ -27,6 +29,17 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaUser
 metadata:
   name: product-service
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: pet-subscription-kafka
+spec:
+  authentication:
+    type: scram-sha-512
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: payment-service
   namespace: kafka
   labels:
     strimzi.io/cluster: pet-subscription-kafka
