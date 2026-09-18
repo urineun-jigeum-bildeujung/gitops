@@ -1,6 +1,6 @@
 # 카나리·블루그린 배포 시연 + 롤백 시나리오
 
-> **상태: 설계 문서 (2026-09-16 작성, 아직 미실행)** — `charts/generic-service`에 카나리/블루그린 템플릿은 이미 있으나, 실행에 필요한 사전 준비(Argo Rollouts 컨트롤러 배포, AnalysisTemplate 라벨 버그 수정)가 아직 안 된 상태. 실제로 시연을 실행하면 이 문서에 결과(터미널 출력, 스크린샷, 실제 걸린 시간)를 채워 넣어 갱신한다.
+> **상태: 실행 완료 (2026-09-18)** — payment-service(카나리)/auth-service(블루그린) 둘 다 정상 승급 + 롤백 시나리오를 실제 클러스터에서 시연했다. 아래 설계 내용에 이어 각 섹션 끝에 **실행 결과**를 추가했다.
 
 ## 왜 이 두 서비스를 골랐는가
 
@@ -60,6 +60,28 @@ canary:
    ```
 7. **결과**: 전체 요청의 80% 이상은 애초에 구버전으로만 처리됐고, 신버전에 노출됐던 20%도 자동 감지 후 짧은 시간 내 되돌아감 — 전체 트래픽을 신버전으로 먼저 밀어넣고 사후에 알아채는 것 대비 피해 범위가 확연히 작음.
 
+### 실행 결과 (2026-09-18)
+
+- **AnalysisTemplate "no data" 버그 발견 및 수정**: 5xx 에러가 0건일 때 `sum(rate(...status=~"5.."))`이 매칭되는 타임시리즈가 아예 없어 Prometheus가 빈 결과를 반환 → AnalysisRun이 `Error`로 실패하는 문제를 발견. `(sum(rate(...5xx...)) or vector(0)) / sum(rate(...total...))`로 수정해 정상 배포도 분석을 통과하도록 고침.
+- **정상 승급**: 수정 후 20%→50%→100% 정상 승급 확인.
+- **롤백 시나리오는 두 가지 장애 주입 방식을 시도**했고, 그 과정에서 중요한 사실을 발견했다:
+  1. **1차 — DB 접속 차단**: `SPRING_DATASOURCE_URL`을 존재하지 않는 호스트로 변경. 결과: Hibernate가 부팅 시점에 DB 커넥션을 요구해서 **애플리케이션 자체가 크래시/재시작을 반복**(crash-loop). crash-loop는 커넥션 자체가 거부되는 것이라 HTTP 레벨 5xx로 잡히지 않고, AnalysisTemplate이 에러율 0%로 오판해서 깨진 버전이 그대로 100%까지 승급되는 사고가 발생했다.
+  2. **2차 — 강제 HTTP 503 코드 주입**: `/actuator/health`가 DB와 무관하게 무조건 503을 반환하는 임시 `HealthIndicator`를 추가. 앱은 정상 기동하고 503도 실제로 확인했으나, **부팅에 약 60초가 걸려** AnalysisTemplate의 측정 주기와 타이밍이 어긋나면서(부팅 완료 전까지는 stable만 트래픽을 받아 에러율 0%로 집계) 이번에도 자동 감지가 승급을 막지 못했다.
+  3. 두 경우 모두 **수동 `kubectl argo rollouts abort`로 즉시 롤백은 성공**했다 — 깨진 리비전이 0개로 스케일다운되고 stable 버전으로 완전 복귀됨을 확인.
+
+```
+$ kubectl argo rollouts abort generic-service -n payment-service
+rollout 'generic-service' aborted
+```
+```
+Events:
+  Normal   ScalingReplicaSet   Scaled up ReplicaSet generic-service-5759869f7 (revision 2, stable) from 2 to 4
+  Warning  RolloutAborted      Rollout aborted update to revision 3
+  Normal   ScalingReplicaSet   Scaled down ReplicaSet generic-service-7c6858d777 (revision 3, canary) from 2 to 0
+```
+
+**결론 / 후속 과제**: 자동 감지가 완전히 신뢰 가능하려면 (a) AnalysisTemplate의 측정 간격·시작 지연을 애플리케이션 부팅 시간보다 여유 있게 잡거나, (b) `startupProbe`로 부팅 완료 전에는 트래픽 자체가 가지 않게 막는 보완이 필요하다. 이번 시연에서는 수동 개입(`abort`)으로 **롤백 메커니즘 자체**(문제 발견 시 트래픽을 안전하게 되돌리는 동작)는 확실히 검증했다.
+
 ## B. 블루그린 롤백 시나리오 — auth-service
 
 ### 설정
@@ -85,9 +107,45 @@ blueGreen:
      ```
 4. **결과**: promote를 안 하는 한 activeService는 신버전이 존재하는 동안에도 계속 구버전만 가리키고 있었으므로, **실사용자는 단 한 건의 요청도 신버전으로 처리된 적이 없음** — 카나리처럼 "일부는 이미 신버전으로 처리됐다"는 부분적 영향 자체가 존재하지 않는 것이 블루그린 롤백의 핵심 장점.
 
-## 산출물로 남길 것 (실행 시)
+### 실행 결과 (2026-09-18)
 
-- [ ] `kubectl argo rollouts get rollout ... --watch` 진행 과정 터미널 캡처 (정상 승급 1회, 롤백 1회 — 카나리/블루그린 각각)
+- **mTLS 환경에서는 `curl`로 preview를 직접 검증할 수 없음을 확인**: auth-service는 `mtls.enabled: true`라 8080/8443 포트 전부 클라이언트 인증서를 요구한다. 클라이언트 인증서 없는 plain curl은 TLS 핸드셰이크 단계에서 거부됨(`000`) — 실제로는 preview 파드 자체의 애플리케이션 로그(`Started AuthServiceApplication`)와 k8s readiness 상태(`ready:1/1`)로 정상 기동을 검증했다.
+- **Promote 시나리오**: preview 정상 기동 확인 후 promote 실행, 신버전이 즉시 active/stable로 전환됨을 확인.
+
+```
+$ kubectl argo rollouts promote generic-service -n auth-service
+rollout 'generic-service' promoted
+```
+```
+Status:          ✔ Healthy
+Images:          ...auth-service:xxx (active, stable)
+```
+
+- **Abort(롤백) 시나리오**: 별도로 새 리비전을 트리거한 뒤 promote 없이 즉시 abort.
+
+```
+$ kubectl argo rollouts abort generic-service -n auth-service
+rollout 'generic-service' aborted
+```
+```
+Status:          ✖ Degraded
+Message:         RolloutAborted: Rollout aborted update to revision 3
+Images:          ...auth-service:xxx (active, stable)   ← 이전 검증된 버전 그대로 유지
+```
+
+- **결과**: active는 abort 시점까지 한 번도 신버전을 가리킨 적이 없어, 설계대로 실사용자 영향 없이 배포 시도만 취소됨을 실제로 확인했다.
+
+## 실행 중 겪은 환경 이슈 (참고)
+
+시연 자체와는 별개로, 진행 도중 클러스터 인프라 문제를 겪고 해결했다 — 재현 가능성이 있어 기록해둔다.
+
+- **워커 노드 1대 kubelet 다운**: EC2 인스턴스 자체는 정상(AWS 헬스체크 통과)인데 kubelet만 응답 불능 상태가 되어 해당 노드의 모든 파드(ArgoCD server, Kafka 브로커, Jenkins 등 포함)가 `Terminating`에 걸림. 인스턴스를 종료해 관리형 노드그룹(ASG)이 자동으로 새 노드를 띄우도록 유도해 복구.
+- **CPU/파드 수 한도**: 시연을 위해 일시적으로 늘린 replicaCount가 겹치면서 클러스터 CPU/노드당 파드 수(29개) 한도에 몰려 Kafka 브로커 등 필수 컴포넌트가 스케줄 자체가 안 되는 상황 발생. replicaCount를 낮춰 해소. **cluster-autoscaler가 클러스터에 실제로는 배포되어 있지 않다는 것도 이 과정에서 확인됨** — ASG 태그만 있고 자동 확장은 동작하지 않는 상태.
+- **CI 파이프라인과의 경합**: 장애 대응 중 수동으로 되돌린 배포 태그를, 마침 그 시점에 뒤늦게 완료된 Jenkins 빌드의 자동 GitOps 커밋이 다시 덮어쓴 사례가 있었다. 진행 중인 배포를 긴급히 수동 조정할 때는 관련 CI 빌드가 대기 중인지 함께 확인할 필요가 있다.
+
+## 산출물로 남길 것
+
+- [x] `kubectl argo rollouts get rollout ...` 진행 과정 터미널 캡처 (정상 승급 1회, 롤백 1회 — 카나리/블루그린 각각) — 위 각 섹션의 실행 결과 참고
 - [ ] Grafana Golden Signals 대시보드에서 배포 시점 전후 에러율/트래픽 그래프 스크린샷
-- [ ] 실제 소요 시간 기록 (예: "에러율 초과 감지부터 자동 중단까지 X분 소요")
-- [ ] 이 문서에 위 캡처/스크린샷 첨부해서 최종본으로 갱신
+- [x] 실제 소요 시간/발견한 이슈 기록 — 위 실행 결과 및 환경 이슈 섹션 참고
+- [ ] 이 문서에 위 캡처 대신/추가로 실제 스크린샷 첨부해서 최종본으로 갱신
