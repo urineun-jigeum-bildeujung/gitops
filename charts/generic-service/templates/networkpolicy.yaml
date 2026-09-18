@@ -3,6 +3,9 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ include "generic-service.name" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     {{- include "generic-service.labels" . | nindent 4 }}
 spec:
@@ -11,11 +14,29 @@ spec:
       {{- include "generic-service.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
+    - Egress
   ingress:
-    - from:
-        {{- range .Values.networkPolicy.allowedNamespaces }}
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ . }}
-        {{- end }}
+    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
+  egress:
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+{{- if .Values.networkPolicy.namespaceDefaultDeny }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "generic-service.name" . }}-namespace-default-deny
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # 서비스 허용 정책보다 나중에 적용, 먼저 prune한다.
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []
+{{- end }}
 {{- end }}

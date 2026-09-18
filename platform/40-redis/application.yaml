@@ -46,6 +46,52 @@ spec:
           security:
             allowInsecureImages: true
         architecture: standalone
+        # 기본 allow-all-client 정책과 새 정책의 합집합이 생기지 않도록 교체한다.
+        networkPolicy:
+          enabled: false
+        extraDeploy:
+          - apiVersion: "networking.k8s.io/v1"
+            kind: "NetworkPolicy"
+            metadata:
+              name: "redis-clients-ingress"
+              namespace: "redis"
+            spec:
+              podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: "redis"
+                  app.kubernetes.io/instance: "redis"
+              policyTypes:
+                - "Ingress"
+              ingress:
+                - from:
+                    - namespaceSelector:
+                        matchLabels:
+                          kubernetes.io/metadata.name: "auth-service"
+                      podSelector:
+                        matchLabels:
+                          app.kubernetes.io/name: "generic-service"
+                          app.kubernetes.io/instance: "dev-auth-service"
+                    - namespaceSelector:
+                        matchLabels:
+                          kubernetes.io/metadata.name: "order-service"
+                      podSelector:
+                        matchLabels:
+                          app.kubernetes.io/name: "generic-service"
+                          app.kubernetes.io/instance: "dev-order-service"
+                  ports:
+                    - protocol: "TCP"
+                      port: 6379
+                - from:
+                    - namespaceSelector:
+                        matchLabels:
+                          kubernetes.io/metadata.name: "redis"
+                      podSelector:
+                        matchLabels:
+                          app.kubernetes.io/name: "redis"
+                          app.kubernetes.io/instance: "redis"
+                  ports:
+                    - protocol: "TCP"
+                      port: 6379
         auth:
           enabled: false
         # internal-ca-issuer로 발급한 서버 인증서(platform/39-redis-cert)를 그대로 연결.

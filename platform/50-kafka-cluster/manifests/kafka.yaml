@@ -49,6 +49,29 @@ spec:
         port: 9092
         type: internal
         tls: false
+        # Strimzi 생성 정책 자체의 리스너 허용 대상을 제한한다.
+        networkPolicyPeers:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "product-service"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "generic-service"
+                app.kubernetes.io/instance: "dev-product-service"
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "order-service"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "generic-service"
+                app.kubernetes.io/instance: "dev-order-service"
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "payment-service"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "generic-service"
+                app.kubernetes.io/instance: "dev-payment-service"
       # 서비스 간 통신 암호화/인증(2026-09-18). SASL/SCRAM-SHA-512를 골랐다 - order-service/
       # product-service 딱 2개만 Kafka를 쓰는 상황이라 mTLS보다 배선이 단순함(개인 키스토어
       # 파일 관리가 없고, Strimzi가 만들어주는 sasl.jaas.config 문자열을 그대로 씀).
@@ -58,6 +81,29 @@ spec:
         port: 9093
         type: internal
         tls: true
+        # Strimzi 생성 정책 자체의 리스너 허용 대상을 제한한다.
+        networkPolicyPeers:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "product-service"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "generic-service"
+                app.kubernetes.io/instance: "dev-product-service"
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "order-service"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "generic-service"
+                app.kubernetes.io/instance: "dev-order-service"
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "payment-service"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "generic-service"
+                app.kubernetes.io/instance: "dev-payment-service"
         authentication:
           type: scram-sha-512
     config:
