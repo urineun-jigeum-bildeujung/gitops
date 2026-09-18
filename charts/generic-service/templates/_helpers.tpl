@@ -93,8 +93,6 @@ KafkaProducerConfig/KafkaConsumerConfig(sever 레포) 코드 몫 - 여기선 배
 {{- else if eq .Values.externalEgress.runtime "node" }}
 - name: NODE_OPTIONS
   value: "--use-env-proxy"
-- name: NODE_USE_ENV_PROXY
-  value: "1"
 - name: HTTP_PROXY
   value: {{ printf "http://%s:3128" $proxyHost | quote }}
 - name: HTTPS_PROXY

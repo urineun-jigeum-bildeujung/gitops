@@ -219,7 +219,7 @@ class NetworkPolicyTests(unittest.TestCase):
             env = {e["name"]: e.get("value") for e in workload["spec"]["template"]["spec"]["containers"][0]["env"]}
             if s == "web":
                 self.assertEqual(env["NODE_OPTIONS"], "--use-env-proxy")
-                self.assertEqual(env["NODE_USE_ENV_PROXY"], "1")
+                self.assertNotIn("NODE_USE_ENV_PROXY", env)
                 self.assertIn("generic-service-egress.web.svc.cluster.local:3128", env["HTTPS_PROXY"])
             else:
                 self.assertIn("-Dhttps.proxyHost=generic-service-egress." + s, env["JAVA_TOOL_OPTIONS"])

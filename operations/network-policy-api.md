@@ -122,6 +122,24 @@ HTTP/포트 차단을 확인했다. Java 기본 JDK HttpClient/URLConnection 및
 배포 전 기존 장애와 정책으로 새로 발생한 장애를 구분한다. 이번 작업은 저장소 파일 수정이며
 클러스터에는 직접 적용하지 않는다.
 
+## 리소스 중복 검수
+
+`task validate`에 `validate:resource-duplicates`를 포함한다. YAML 중복 키, 동일한
+API group/종류/Namespace/이름의 리소스, 환경변수 이름, 컨테이너·Service 포트,
+컨테이너·볼륨 이름과 마운트 경로, 동일한 NetworkPolicy 규칙/peer/port,
+프록시 허용 도메인의 중복을 검사한다. Namespace가 다르거나 서로 다른 workload 모드의
+리소스는 별도로 구분한다.
+
+2026-09-18 검수에서 YAML 75개, 서비스 기본/카나리/블루그린 렌더링 24개,
+기본 배포 및 저장소 선언 리소스 200개의 중복 오류가 없었다. Node의 중복된 활성화
+설정은 NODE_OPTIONS만 남겼다. Namespace 기본 차단과 앱/프록시 허용 정책의
+selector 중첩, 서비스별 프록시 5개와 각 2 replica는 필요한 구성으로 유지한다.
+
+검수 대상은 로컬 저장소 선언, 플랫폼 Helm inline values의 extraDeploy,
+서비스 차트 렌더링 결과다. operations의 수동 복원 예시는 별도 배포이므로 운영 리소스와
+합쳐 비교하지 않는다. 원격 플랫폼 Helm chart의 전체 생성 결과, Operator가 생성한
+리소스 및 실행 중인 클러스터의 중복/정책 합집합은 이 정적 검사만으로 확인하지 않는다.
+
 ## 롤백
 
 외부 호출 문제는 해당 서비스의 이번 values 변경(인터넷 예외 제거 및 externalEgress 설정)을 함께
