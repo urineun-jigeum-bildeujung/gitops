@@ -74,7 +74,11 @@ blueGreen:
 
 networkPolicy:
   enabled: false
-  allowedNamespaces: []
+  # 전용 서비스 Namespace의 나머지 Pod도 기본 차단한다. 공유 Namespace에서는 false.
+  namespaceDefaultDeny: false
+  # Kubernetes 원본 규칙. 빈 목록은 해당 방향 전체 차단이다.
+  ingress: []
+  egress: []
 
 # 서비스 간 mTLS. true로 켜면 platform/00-internal-ca(사설 CA)가 이 서비스 전용
 # 인증서(서버+클라이언트 겸용)를 발급한다. 인증서만 발급되는 단계이고, 애플리케이션이

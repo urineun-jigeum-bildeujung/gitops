@@ -6,6 +6,12 @@ tasks:
     cmds:
       - task: validate:chart
       - task: validate:yaml
+      - task: validate:network-policy
+
+  validate:network-policy:
+    desc: 내부 Ingress/Egress 허용·차단 경로 검증 — 인접 gitops-value 저장소 필요
+    cmds:
+      - python3 tests/test_network_policy.py
 
   validate:chart:
     desc: charts/generic-service를 여러 옵션 조합(기본/카나리+오토스케일링+네트워크정책)으로 렌더링해서 템플릿 문법 오류 확인

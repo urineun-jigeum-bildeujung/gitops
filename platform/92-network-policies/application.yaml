@@ -1,0 +1,24 @@
+apiVersion: "argoproj.io/v1alpha1"
+kind: "Application"
+metadata:
+  name: "internal-network-policies"
+  namespace: "argocd"
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - "resources-finalizer.argocd.argoproj.io"
+spec:
+  project: "platform"
+  source:
+    repoURL: "https://github.com/urineun-jigeum-bildeujung/gitops.git"
+    targetRevision: "main"
+    path: "platform/92-network-policies/manifests"
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: "observability"
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - "ServerSideApply=true"

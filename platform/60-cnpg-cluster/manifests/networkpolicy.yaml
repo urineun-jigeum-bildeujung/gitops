@@ -1,0 +1,102 @@
+# DB 수신만 제한한다. 복제·Operator·메트릭 경로 유지, 백업/S3 Egress는 변경하지 않는다.
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "petflow-db-ingress"
+  namespace: "database"
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: "petflow-db"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "auth-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-auth-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "member-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-member-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "product-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-product-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "order-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-order-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "payment-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-payment-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "review-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-review-service"
+      ports:
+        - protocol: "TCP"
+          port: 5432
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "database"
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: "petflow-db"
+      ports:
+        - protocol: "TCP"
+          port: 5432
+        - protocol: "TCP"
+          port: 8000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "cnpg-system"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "cloudnative-pg"
+              app.kubernetes.io/instance: "cnpg"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "cnpg-system"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "plugin-barman-cloud"
+              app.kubernetes.io/instance: "plugin-barman-cloud"
+      ports:
+        - protocol: "TCP"
+          port: 5432
+        - protocol: "TCP"
+          port: 8000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 9187

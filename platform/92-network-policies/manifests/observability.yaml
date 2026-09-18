@@ -1,0 +1,353 @@
+# 관측성의 알려진 수신 Pod만 제한한다. Operator와 플랫폼 Egress는 그대로 유지한다.
+# 포트는 Service port가 아니라 목적지 Pod의 실제 targetPort이다.
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "tempo-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "tempo"
+      app.kubernetes.io/instance: "tempo"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "auth-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-auth-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "member-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-member-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "product-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-product-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "order-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-order-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "payment-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-payment-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "review-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-review-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "notification-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-notification-service"
+      ports:
+        - protocol: "TCP"
+          port: 4318
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "alloy"
+              app.kubernetes.io/instance: "alloy"
+      ports:
+        - protocol: "TCP"
+          port: 4317
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "grafana"
+              app.kubernetes.io/instance: "kube-prometheus-stack"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 3200
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "loki-gateway-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "loki"
+      app.kubernetes.io/instance: "loki"
+      app.kubernetes.io/component: "gateway"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "alloy"
+              app.kubernetes.io/instance: "alloy"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "grafana"
+              app.kubernetes.io/instance: "kube-prometheus-stack"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "loki"
+              app.kubernetes.io/instance: "loki"
+              app.kubernetes.io/component: "canary"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 8080
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "loki-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "loki"
+      app.kubernetes.io/instance: "loki"
+      app.kubernetes.io/component: "single-binary"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "loki"
+              app.kubernetes.io/instance: "loki"
+              app.kubernetes.io/component: "gateway"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "loki"
+              app.kubernetes.io/instance: "loki"
+              app.kubernetes.io/component: "canary"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 3100
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "loki"
+              app.kubernetes.io/instance: "loki"
+              app.kubernetes.io/component: "single-binary"
+      ports:
+        - protocol: "TCP"
+          port: 3100
+        - protocol: "TCP"
+          port: 9095
+        - protocol: "TCP"
+          port: 7946
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "loki-canary-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "loki"
+      app.kubernetes.io/instance: "loki"
+      app.kubernetes.io/component: "canary"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 3500
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "alloy-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "alloy"
+      app.kubernetes.io/instance: "alloy"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: "10.0.0.0/24"
+        - ipBlock:
+            cidr: "10.0.1.0/24"
+      ports:
+        - protocol: "TCP"
+          port: 12347
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 12345
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "grafana-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "grafana"
+      app.kubernetes.io/instance: "kube-prometheus-stack"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: "10.0.4.0/22"
+        - ipBlock:
+            cidr: "10.0.8.0/22"
+      ports:
+        - protocol: "TCP"
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "prometheus"
+              app.kubernetes.io/instance: "kube-prometheus-stack-prometheus"
+      ports:
+        - protocol: "TCP"
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "grafana"
+              app.kubernetes.io/instance: "kube-prometheus-stack"
+      ports:
+        - protocol: "TCP"
+          port: 9094
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "grafana"
+              app.kubernetes.io/instance: "kube-prometheus-stack"
+      ports:
+        - protocol: "UDP"
+          port: 9094
+---
+apiVersion: "networking.k8s.io/v1"
+kind: "NetworkPolicy"
+metadata:
+  name: "prometheus-ingress"
+  namespace: "observability"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: "prometheus"
+      operator.prometheus.io/name: "kube-prometheus-stack-prometheus"
+  policyTypes:
+    - "Ingress"
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "observability"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "grafana"
+              app.kubernetes.io/instance: "kube-prometheus-stack"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "argo-rollouts"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "argo-rollouts"
+              app.kubernetes.io/instance: "argo-rollouts"
+        - ipBlock:
+            cidr: "10.0.4.0/22"
+        - ipBlock:
+            cidr: "10.0.8.0/22"
+      ports:
+        - protocol: "TCP"
+          port: 9090
