@@ -29,3 +29,7 @@ Thumbs.db
 # 임시/백업 파일
 *.bak
 *.orig
+
+# Python 검증 캐시
+__pycache__/
+*.py[cod]
