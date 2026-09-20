@@ -18,6 +18,11 @@ spec:
         values: |
           grafana:
             enabled: true
+            grafana.ini:
+              auth.anonymous:
+                enabled: false
+              users:
+                allow_sign_up: false
             # Grafana 13부터 prometheus 데이터소스 플러그인이 이미지 안 읽기전용
             # 경로(/usr/share/grafana/data/plugins-bundled)에 번들로만 들어있는데,
             # 이 파드가 readOnlyRootFilesystem으로 뜨면서 부팅 시 그 플러그인을

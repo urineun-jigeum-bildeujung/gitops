@@ -276,10 +276,12 @@ class NetworkPolicyTests(unittest.TestCase):
         for address in ["10.0.0.10", "10.0.1.10"]:
             self.assertTrue(permits(web, "external", {}, 3000, ip=address))
             self.assertTrue(permits(self.obs["alloy-ingress"], "external", {}, 12347, ip=address))
+            self.assertTrue(permits(self.obs["grafana-ingress"], "external", {}, 3000, ip=address))
+            self.assertFalse(permits(self.obs["prometheus-ingress"], "external", {}, 9090, ip=address))
         self.assertFalse(permits(web, "external", {}, 3000, ip="10.0.4.10"))
         for address in ["10.0.4.10", "10.0.8.10"]:
-            self.assertTrue(permits(self.obs["grafana-ingress"], "external", {}, 3000, ip=address))
-            self.assertTrue(permits(self.obs["prometheus-ingress"], "external", {}, 9090, ip=address))
+            self.assertFalse(permits(self.obs["grafana-ingress"], "external", {}, 3000, ip=address))
+            self.assertFalse(permits(self.obs["prometheus-ingress"], "external", {}, 9090, ip=address))
         self.assertTrue(permits(web, "api-gateway", service_labels("api-gateway"), 8080, "egress"))
 
     def test_database_replication_and_operator(self):

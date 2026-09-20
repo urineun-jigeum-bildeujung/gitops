@@ -276,9 +276,9 @@ spec:
   ingress:
     - from:
         - ipBlock:
-            cidr: "10.0.4.0/22"
+            cidr: "10.0.0.0/24"
         - ipBlock:
-            cidr: "10.0.8.0/22"
+            cidr: "10.0.1.0/24"
       ports:
         - protocol: "TCP"
           port: 3000
@@ -344,10 +344,6 @@ spec:
             matchLabels:
               app.kubernetes.io/name: "argo-rollouts"
               app.kubernetes.io/instance: "argo-rollouts"
-        - ipBlock:
-            cidr: "10.0.4.0/22"
-        - ipBlock:
-            cidr: "10.0.8.0/22"
       ports:
         - protocol: "TCP"
           port: 9090
