@@ -76,10 +76,14 @@ spec:
                   replace    = "${1}[REDACTED]${2}"
                 }
 
-                // 인증/결제/배송지/회원 관련 본문 필드명. "code"는 이름이 흔해서 무관한
-                // 값까지 가릴 수 있지만, 과잉 마스킹이 유출보다 안전한 실패 방향이라 유지.
+                // 인증/결제/배송지/회원 관련 본문 필드명. 정확히 일치가 아니라 포함(contains)
+                // 매칭으로 짠다 — 프론트가 localStorage에 refreshToken을 "gollaju.refreshToken"
+                // 키로 저장 중이라, 키 이름이 정확히 "refreshToken"일 때만 잡는 정규식으로는
+                // 이 값이 에러 컨텍스트에 실려도 못 잡음(2026-09-21, 지호님 지적으로 발견).
+                // "code"는 이름이 흔해서 무관한 값까지 가릴 수 있지만, 과잉 마스킹이 유출보다
+                // 안전한 실패 방향이라 유지 — contains 매칭으로 바꾸면서 이 트레이드오프는 더 커짐.
                 stage.replace {
-                  expression = "(\"(?:accessToken|refreshToken|code|paymentKey|customerKey|tossOrderId|receiver|phone|address|detail|zipCode|deliveryNote|nickname)\"\\s*:\\s*\")[^\"]*(\")"
+                  expression = "(\"[^\"]*(?:accessToken|refreshToken|code|paymentKey|customerKey|tossOrderId|receiver|phone|address|detail|zipCode|deliveryNote|nickname)[^\"]*\"\\s*:\\s*\")[^\"]*(\")"
                   replace    = "${1}[REDACTED]${2}"
                 }
               }
