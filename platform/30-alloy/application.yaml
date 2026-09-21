@@ -48,7 +48,65 @@ spec:
                   api_key              = env("FARO_API_KEY")
                 }
                 output {
-                  logs   = [loki.write.loki.receiver]
+                  logs   = [loki.process.faro_redact.receiver]
+                  traces = [otelcol.processor.attributes.faro_redact.input]
+                }
+              }
+
+              // 민감정보 2차 방어선(2026-09-21, 프론트엔드 지호님 요청 기반). 1차는
+              // 프론트가 Faro SDK의 beforeSend/ignoreUrls로 원본에서 걸러내는 것이고,
+              // 여기는 그게 빠졌을 경우를 대비한 백업 필터. 아직 Faro SDK가 실제로
+              // 붙기 전이라 로그 줄의 정확한 JSON 구조를 검증 못 했음 — 그래서 특정
+              // 키 아래 중첩된 값만 잡는 대신, 어디에 있든 값 패턴 자체를 정규식으로
+              // 잡는 방식으로 짬(구조를 몰라도 비교적 안전하게 동작). 실제 트래픽이
+              // 흐르기 시작하면 로그 샘플로 이 규칙들이 실제로 매칭되는지 재검증 필요.
+              loki.process "faro_redact" {
+                forward_to = [loki.write.loki.receiver]
+
+                // 인가코드/결제키 등은 URL 자체에 실리므로 필드명 마스킹으로는 못 잡음 —
+                // 4개 경로는 쿼리스트링을 통째로 제거한다.
+                stage.replace {
+                  expression = "(/(?:auth/callback|payment/done|signup|mypage/address/search))\\?[^\"'\\s]*"
+                  replace    = "${1}?[REDACTED]"
+                }
+
+                // 인증/결제 관련 헤더 3종.
+                stage.replace {
+                  expression = "(?i)(\"(?:authorization|idempotency-key|x-api-key)\"\\s*:\\s*\")[^\"]*(\")"
+                  replace    = "${1}[REDACTED]${2}"
+                }
+
+                // 인증/결제/배송지/회원 관련 본문 필드명. "code"는 이름이 흔해서 무관한
+                // 값까지 가릴 수 있지만, 과잉 마스킹이 유출보다 안전한 실패 방향이라 유지.
+                stage.replace {
+                  expression = "(\"(?:accessToken|refreshToken|code|paymentKey|customerKey|tossOrderId|receiver|phone|address|detail|zipCode|deliveryNote|nickname)\"\\s*:\\s*\")[^\"]*(\")"
+                  replace    = "${1}[REDACTED]${2}"
+                }
+              }
+
+              // 트레이스(Tempo)는 헤더가 span 속성으로 들어올 경우만 우선 방어한다.
+              // URL 쿼리스트링 제거는 Faro가 URL을 정확히 어느 속성 이름으로 실어보내는지
+              // (http.url/url.full 등 구현마다 다름) 실트래픽으로 확인 전이라 보류함 —
+              // 확인되는 대로 별도 처리 추가 필요.
+              otelcol.processor.attributes "faro_redact" {
+                action {
+                  key    = "authorization"
+                  action = "delete"
+                }
+                action {
+                  key    = "idempotency-key"
+                  action = "delete"
+                }
+                action {
+                  key    = "x-api-key"
+                  action = "delete"
+                }
+                action {
+                  key    = "http.request.header.authorization"
+                  action = "delete"
+                }
+
+                output {
                   traces = [otelcol.exporter.otlp.tempo.input]
                 }
               }
