@@ -1,4 +1,5 @@
-# CNPG Operator와 Barman Cloud Plugin이 준비된 다음 PostgreSQL Cluster와 백업 CR을 적용한다.
+# Cluster/ObjectStore는 infra/tapply.sh가 복원 경로를 결정해 먼저 생성한다.
+# 이 Application은 서비스별 Database, ScheduledBackup, NetworkPolicy를 관리한다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,7 +20,9 @@ spec:
     namespace: database
   syncPolicy:
     automated:
-      prune: true
+      # 기존 배포의 Cluster/ObjectStore가 이 Application의 추적 대상이었다.
+      # 관리 이관 중 해당 리소스가 삭제되지 않도록 자동 prune을 끈다.
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
