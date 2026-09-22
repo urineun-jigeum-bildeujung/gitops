@@ -16,7 +16,7 @@ CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
 DB_CLIENTS = set(API_PORTS)
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
-EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service", "web"}
+EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service", "order-service", "web"}
 
 
 def read_yaml(path):
@@ -182,7 +182,7 @@ class NetworkPolicyTests(unittest.TestCase):
             for port in [80, 443, 9999]:
                 self.assertFalse(permits(policy, "external", {}, port, "egress", ip="203.0.113.10"))
             self.assertEqual(permits(policy, "kube-system", {}, 80, "egress", ip="169.254.170.23"),
-                             s in {"member-service", "review-service"})
+                             s in {"member-service", "review-service", "order-service"})
             self.assertFalse(permits(policy, "kube-system", {}, 443, "egress", ip="169.254.170.23"))
 
     def test_external_proxy_is_service_specific_and_cannot_reach_private_ips(self):
@@ -208,6 +208,7 @@ class NetworkPolicyTests(unittest.TestCase):
                 "payment-service": ["api.tosspayments.com"],
                 "member-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
                 "review-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
+                "order-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
                 "web": ["business.juso.go.kr", "image.leechs.shop"],
             }[s]
             self.assertIn("acl allowed_domains dstdomain -n " + " ".join(expected) + "\n", config)
