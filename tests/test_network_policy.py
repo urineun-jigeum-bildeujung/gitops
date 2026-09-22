@@ -13,7 +13,7 @@ API_PORTS = {"auth-service": 8443, "member-service": 8443, "order-service": 8443
              "review-service": 8080, "notification-service": 8080}
 CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
            "product-service": "order-service", "order-service": "payment-service"}
-DB_CLIENTS = set(API_PORTS) - {"notification-service"}
+DB_CLIENTS = set(API_PORTS)
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
 EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service", "web"}
