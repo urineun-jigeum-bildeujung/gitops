@@ -54,6 +54,13 @@ spec:
             matchLabels:
               app.kubernetes.io/name: "generic-service"
               app.kubernetes.io/instance: "dev-review-service"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "notification-service"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-notification-service"
       ports:
         - protocol: "TCP"
           port: 5432
