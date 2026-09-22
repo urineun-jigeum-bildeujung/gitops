@@ -24,7 +24,7 @@
 | web | business.juso.go.kr | TCP 443 | 구현 | /addrlink/addrLinkApi.do; Next.js 서버 Route Handler가 주소 검색 |
 | member-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | profiles/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
 | review-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | reviews/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
-| order-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | claims/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
+| order-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | orders/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
 | web | image.leechs.shop | TCP 443 | 예정·조건부 | 업로드 이미지 CDN; Next.js 서버 이미지 최적화를 사용할 때 Pod 연결 필요 |
 | product-service | 확인된 외부 목적지 없음 | — | 미정 | 상품 이미지 업로드 담당 서비스/계약 미정; 임의 S3 권한을 추가하지 않음 |
 | notification-service | 푸시 제공자 도메인 미정 | — | 미정 | 알림 UI의 푸시 안내는 있으나 제공자·발송 구현·담당 서버 경로 미확정 |
