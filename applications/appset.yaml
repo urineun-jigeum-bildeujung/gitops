@@ -27,6 +27,9 @@ spec:
               revision: main
               directories:
                 - path: "values/{{.env}}/services/*"
+                # 실제 ECR 이미지가 준비될 때까지 Application 생성을 보류한다.
+                - path: "values/{{.env}}/services/api-gateway"
+                  exclude: true
                 - path: "values/{{.env}}/services/_*"
                   exclude: true
   template:

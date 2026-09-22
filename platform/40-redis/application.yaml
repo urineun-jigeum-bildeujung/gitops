@@ -78,6 +78,13 @@ spec:
                         matchLabels:
                           app.kubernetes.io/name: "generic-service"
                           app.kubernetes.io/instance: "dev-order-service"
+                    - namespaceSelector:
+                        matchLabels:
+                          kubernetes.io/metadata.name: "api-gateway"
+                      podSelector:
+                        matchLabels:
+                          app.kubernetes.io/name: "generic-service"
+                          app.kubernetes.io/instance: "dev-api-gateway"
                   ports:
                     - protocol: "TCP"
                       port: 6379

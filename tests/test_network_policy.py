@@ -9,10 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "charts/generic-service"
 VALUES = ROOT.parent / "gitops-value/values/dev/services"
 API_PORTS = {"auth-service": 8443, "member-service": 8443, "order-service": 8443,
-             "product-service": 8080, "payment-service": 8080,
-             "review-service": 8080, "notification-service": 8080}
+             "product-service": 8443, "payment-service": 8443,
+             "review-service": 8443, "notification-service": 8443}
 CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
-           "product-service": "order-service", "order-service": "payment-service"}
+           "product-service": "member-service", "order-service": "payment-service"}
 DB_CLIENTS = set(API_PORTS)
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
@@ -102,6 +102,9 @@ class NetworkPolicyTests(unittest.TestCase):
         cls.rendered = {s: render(s, VALUES / s / "values.yaml") for s in list(API_PORTS) + ["web"]}
         cls.service_policies = {s: next(p for p in policies(docs)
             if p["metadata"]["name"] == "generic-service") for s, docs in cls.rendered.items()}
+        cls.gateway_rendered = render("api-gateway", VALUES / "api-gateway/values.yaml")
+        cls.gateway_policy = next(p for p in policies(cls.gateway_rendered)
+            if p["metadata"]["name"] == "generic-service")
         cls.db = read_yaml(ROOT / "platform/60-cnpg-cluster/manifests/networkpolicy.yaml")[0]
         app = read_yaml(ROOT / "platform/40-redis/application.yaml")[0]
         cls.redis_values = yaml.safe_load(app["spec"]["source"]["helm"]["values"])
@@ -161,6 +164,70 @@ class NetworkPolicyTests(unittest.TestCase):
             self.assertEqual(permits(self.redis, s, service_labels(s), 6379), s in REDIS_CLIENTS)
         # A broad pre-existing policy cannot remain: permissions are additive.
         self.assertFalse(self.redis_values["networkPolicy"]["enabled"])
+
+    def test_gateway_contract_and_network_paths(self):
+        gateway = self.gateway_policy
+        self.assertEqual(gateway["metadata"]["namespace"], "api-gateway")
+        self.assertEqual(gateway["spec"]["podSelector"]["matchLabels"],
+                         service_labels("api-gateway"))
+        self.assertTrue(permits(gateway, "web", service_labels("web"), 8080))
+        self.assertFalse(permits(gateway, "web", service_labels("unrelated"), 8080))
+        self.assertTrue(permits(gateway, "api-gateway",
+                                {"app.kubernetes.io/name": "network-debug"}, 8080))
+        for service in API_PORTS:
+            self.assertTrue(permits(gateway, service, service_labels(service), 8443, "egress"))
+        self.assertTrue(permits(gateway, "redis", REDIS, 6379, "egress"))
+        self.assertTrue(permits(self.redis, "api-gateway",
+                                service_labels("api-gateway"), 6379))
+        self.assertTrue(permits(gateway, "observability", TEMPO, 4318, "egress"))
+
+        deployment = next(d for d in self.gateway_rendered if d["kind"] == "Deployment")
+        container = deployment["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(container["ports"], [{"containerPort": 8080}])
+        self.assertEqual(container["readinessProbe"]["httpGet"],
+                         {"path": "/actuator/health", "port": 8080, "scheme": "HTTP"})
+        self.assertEqual(container["startupProbe"]["tcpSocket"], {"port": 8080})
+        self.assertNotIn("livenessProbe", container)
+        env = {item["name"]: item for item in container["env"]}
+        for name in ["SERVER_PORT", "MANAGEMENT_SERVER_PORT", "SERVER_SSL_ENABLED",
+                     "SERVER_SSL_CLIENT_AUTH", "SERVER_SSL_BUNDLE"]:
+            self.assertNotIn(name, env)
+        for name in ["INTERNAL_MTLS_ENABLED",
+                     "SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_KEYSTORE_CERTIFICATE",
+                     "SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_KEYSTORE_PRIVATE_KEY",
+                     "SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_TRUSTSTORE_CERTIFICATE"]:
+            self.assertIn(name, env)
+        self.assertEqual(env["INTERNAL_GATEWAY_SECRET"]["valueFrom"]["secretKeyRef"],
+                         {"name": "gateway-secret", "key": "INTERNAL_GATEWAY_SECRET"})
+        service = next(d for d in self.gateway_rendered if d["kind"] == "Service")
+        self.assertEqual(service["spec"]["ports"],
+                         [{"name": "http", "port": 80, "targetPort": 8080, "protocol": "TCP"}])
+        certificate = next(d for d in self.gateway_rendered if d["kind"] == "Certificate")
+        self.assertIn("client auth", certificate["spec"]["usages"])
+        self.assertFalse(any(d["kind"] in ["Ingress", "ServiceMonitor", "Rollout"]
+                             for d in self.gateway_rendered))
+
+        mounts = {mount["name"]: mount for mount in container["volumeMounts"]}
+        self.assertEqual(mounts["mtls-cert"],
+                         {"name": "mtls-cert", "mountPath": "/etc/mtls", "readOnly": True})
+        volumes = {volume["name"]: volume for volume in
+                   deployment["spec"]["template"]["spec"]["volumes"]}
+        self.assertEqual(volumes["mtls-cert"]["secret"]["secretName"],
+                         "generic-service-mtls-cert")
+
+        for setting in ["canary.enabled=true", "blueGreen.enabled=true"]:
+            docs = render("api-gateway", VALUES / "api-gateway/values.yaml", [setting])
+            rollout = next(d for d in docs if d["kind"] == "Rollout")
+            rollout_container = rollout["spec"]["template"]["spec"]["containers"][0]
+            self.assertEqual(rollout_container["ports"], [{"containerPort": 8080}])
+            self.assertIn("startupProbe", rollout_container)
+            self.assertIn("readinessProbe", rollout_container)
+            rollout_env = {item["name"]: item for item in rollout_container["env"]}
+            self.assertNotIn("SERVER_PORT", rollout_env)
+            for rendered_service in [d for d in docs if d["kind"] == "Service"]:
+                self.assertEqual(rendered_service["spec"]["ports"],
+                                 [{"name": "http", "port": 80, "targetPort": 8080,
+                                   "protocol": "TCP"}])
 
     def test_kafka_generated_listener_policies_are_restricted_at_source(self):
         for listener in self.kafka["spec"]["kafka"]["listeners"]:

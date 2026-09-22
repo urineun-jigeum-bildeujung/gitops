@@ -101,6 +101,16 @@ externalEgress:
 # 그 인증서를 실제로 로드해서 HTTPS로 서빙/호출하게 만드는 건 공통 모듈(다음 단계) 몫.
 mtls:
   enabled: false
+  # 인증서/클라이언트 TLS는 유지하면서 평문 HTTP로 수신해야 하는 Gateway는 false.
+  # 기존 Backend는 이 기본값으로 종전처럼 8443 서버 mTLS를 유지한다.
+  server:
+    enabled: true
+
+# 비워두면 기존 서비스 Pod spec에는 Probe가 추가되지 않는다.
+# 서비스별 values에서 Kubernetes Probe 원본 스키마로 설정한다.
+startupProbe: {}
+readinessProbe: {}
+livenessProbe: {}
 
 # Kafka SASL/SCRAM-SHA-512. true로 켜면 kafka-credentials ExternalSecret(플랫폼
 # 91-external-secrets-config가 미리 배달해둔 것)의 자격증명/CA를 마운트·주입한다.
