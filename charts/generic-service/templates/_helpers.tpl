@@ -37,6 +37,7 @@ Map<String,...> 동적 키라, 환경변수(SystemEnvironmentPropertySource)가 
 {{- if .Values.mtls.enabled }}
 - name: INTERNAL_MTLS_ENABLED
   value: "true"
+{{- if .Values.mtls.server.enabled }}
 - name: SERVER_PORT
   value: "8443"
 - name: MANAGEMENT_SERVER_PORT
@@ -47,6 +48,7 @@ Map<String,...> 동적 키라, 환경변수(SystemEnvironmentPropertySource)가 
   value: "need"
 - name: SERVER_SSL_BUNDLE
   value: "internalmtls"
+{{- end }}
 - name: SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_KEYSTORE_CERTIFICATE
   value: "file:/etc/mtls/tls.crt"
 - name: SPRING_SSL_BUNDLE_PEM_INTERNALMTLS_KEYSTORE_PRIVATE_KEY

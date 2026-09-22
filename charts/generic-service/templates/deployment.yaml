@@ -31,7 +31,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.targetPort }}
-            {{- if .Values.mtls.enabled }}
+            {{- if and .Values.mtls.enabled .Values.mtls.server.enabled }}
             - containerPort: 8443
               name: mtls
             {{- end }}
@@ -42,6 +42,18 @@ spec:
             {{- include "generic-service.externalEgressEnv" . | nindent 12 }}
             {{- include "generic-service.mtlsEnv" . | nindent 12 }}
             {{- include "generic-service.kafkaSaslEnv" . | nindent 12 }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
           volumeMounts:
             {{- if .Values.mtls.enabled }}

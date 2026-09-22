@@ -7,13 +7,19 @@
 # 05-rbac(wave -8)가 이 네임스페이스를 참조하는 시점엔 아직 없을 수 있음. 여기서 wave -9로
 # 먼저 만들어두면 순서 문제가 사라짐 (appset.yaml의 CreateNamespace=true는 안전망으로 유지).
 #
-# platform/api-gateway(sever 레포)는 아직 values 레포에 연결 전이라 이번엔 제외 — 연결할 때 추가.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: auth-service
   labels:
     kubernetes.io/metadata.name: auth-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api-gateway
+  labels:
+    kubernetes.io/metadata.name: api-gateway
 ---
 apiVersion: v1
 kind: Namespace

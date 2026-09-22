@@ -11,7 +11,7 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
-    {{- if .Values.mtls.enabled }}
+    {{- if and .Values.mtls.enabled .Values.mtls.server.enabled }}
     - name: mtls
       port: 8443
       targetPort: 8443
@@ -36,7 +36,7 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
-    {{- if .Values.mtls.enabled }}
+    {{- if and .Values.mtls.enabled .Values.mtls.server.enabled }}
     - name: mtls
       port: 8443
       targetPort: 8443
