@@ -47,17 +47,29 @@ aws eks update-kubeconfig --name petflow-eks --region ap-northeast-2
 task bootstrap
 ```
 
-`task bootstrap`은 ArgoCD, Jenkins Credential, `root-app.yaml`을 모두 복구한다. Jenkins Git Credential
-생성에는 로그인된 GitHub CLI가 필요하다. Controller/ALB 같은 클러스터 핵심 경로만 복구할 때는 GitHub
-인증에 의존하지 않는 다음 명령을 사용한다.
+`task bootstrap`은 ArgoCD, Jenkins Credential, `root-app.yaml`을 모두 복구한다. Jenkins Git Credential이
+없을 때는 로그인된 GitHub CLI와 `sever` 읽기·`gitops-value` 쓰기 권한이 필요하다. 유효한 Secret이 이미
+있으면 GitHub CLI 인증 없이도 기존 값을 유지한다. Controller/ALB 같은 클러스터 핵심 경로만 복구할 때는
+GitHub 인증에 의존하지 않는 다음 명령을 사용한다.
 
 ```bash
 task bootstrap:core
 ```
 
-Jenkins Credential만 별도로 복구하려면 `gh auth status`가 성공하는 상태에서
-`task bootstrap:credentials`를 실행한다. 개별 단계는 `task bootstrap:argocd`,
-`task bootstrap:root-app`으로도 실행할 수 있다.
+Jenkins Credential만 별도로 복구하려면 다음 명령을 실행한다. 모든 Kubernetes 호출은 지정한 context와
+`jenkins` Namespace를 사용한다. 기존 Secret은 필수 키가 모두 유효할 때 보존하며, 키가 없거나 빈 기존
+Secret은 자동으로 덮어쓰지 않고 실패한다. Git Secret이 누락됐는데 GitHub 인증·권한이 없을 때도
+`gh auth login`을 자동 실행하지 않고 실패한다.
+
+```bash
+task bootstrap:credentials KUBE_CONTEXT=petflow-dev
+```
+
+관리자 Secret은 기존 값이 있으면 유지되지만 클러스터와 함께 삭제된 경우 현재 공식 bootstrap이 새 랜덤
+비밀번호를 만든다. 클러스터 세대 사이에 같은 관리자 비밀번호를 복원하는 영구 공급원은 아직 없으며,
+필요하면 AWS Secrets Manager 같은 보존 저장소로 옮기는 작업을 별도 범위로 진행한다. 개별 단계는
+`task bootstrap:jenkins-admin-secret`, `task bootstrap:jenkins-git-credentials`,
+`task bootstrap:argocd`, `task bootstrap:root-app`으로 실행할 수 있다.
 
 커밋 전 검증은 `task validate` (Helm 차트 렌더링 + 전체 YAML 문법 검사).
 

@@ -62,10 +62,9 @@ tasks:
       - task: bootstrap:root-app
 
   bootstrap:credentials:
-    desc: Jenkins 운영 Credential 복구 (GitHub CLI 로그인 필요)
+    desc: Jenkins 운영 Credential 보존·복구 (Git Secret 누락 시 GitHub CLI 로그인 필요)
     cmds:
-      - task: bootstrap:jenkins-admin-secret
-      - task: bootstrap:jenkins-git-credentials
+      - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope all
 
   bootstrap:argocd:
     desc: ArgoCD Helm 설치/업그레이드 (이미 있으면 그대로 유지, --install이라 몇 번을 실행해도 안전)
@@ -91,16 +90,7 @@ tasks:
   bootstrap:jenkins-admin-secret:
     desc: Jenkins admin 계정 Secret 생성 (없을 때만, ArgoCD sync에 흔들리지 않는 고정값)
     cmds:
-      - kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
-      - |
-        if kubectl get secret jenkins-admin-credentials -n jenkins >/dev/null 2>&1; then
-          echo "jenkins-admin-credentials 이미 존재 — 기존 값 유지"
-        else
-          kubectl create secret generic jenkins-admin-credentials -n jenkins \
-            --from-literal=jenkins-admin-user=admin \
-            --from-literal=jenkins-admin-password="$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | head -c 24)"
-          echo "jenkins-admin-credentials 새로 생성함 — 'task jenkins:creds'로 조회 가능"
-        fi
+      - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope admin
 
   # sever/Jenkinsfile의 Update GitOps 스테이지가 쓰는 gitops-value push용 credential
   # (Jenkins credential id: gitops-value-push). Jenkins Job(멀티브랜치 파이프라인)과 마찬가지로
@@ -110,20 +100,8 @@ tasks:
   # 부팅마다 이 Secret으로 credential을 자동 등록하게 만들어서 다시는 손으로 안 만들어도 됨.
   bootstrap:jenkins-git-credentials:
     desc: gitops-value push용 GitHub credential Secret 생성 (없을 때만, gh CLI 로그인 필요)
-    preconditions:
-      - sh: gh auth status
-        msg: "gh CLI 로그인이 안 되어 있습니다. 'gh auth login'을 먼저 실행하세요."
     cmds:
-      - kubectl create namespace jenkins --dry-run=client -o yaml | kubectl apply -f -
-      - |
-        if kubectl get secret jenkins-git-credentials -n jenkins >/dev/null 2>&1; then
-          echo "jenkins-git-credentials 이미 존재 — 기존 값 유지"
-        else
-          kubectl create secret generic jenkins-git-credentials -n jenkins \
-            --from-literal=git-username="$(gh api user --jq .login)" \
-            --from-literal=git-token="$(gh auth token)"
-          echo "jenkins-git-credentials 새로 생성함"
-        fi
+      - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope git
 
   bootstrap:root-app:
     desc: root-app.yaml apply — 여기서부터는 ArgoCD가 나머지(플랫폼 addon, 서비스)를 전부 cascade로 배포
