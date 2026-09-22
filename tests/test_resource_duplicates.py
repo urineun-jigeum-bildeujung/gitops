@@ -19,7 +19,7 @@ def mapping(loader,node,deep=False):
     return result
 StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,mapping)
 errors=[]; resources=[]; files=0
-cluster={'Namespace','StorageClass','ClusterRole','ClusterRoleBinding','ClusterIssuer','ClusterSecretStore','CustomResourceDefinition','PersistentVolume'}
+cluster={'Namespace','StorageClass','ClusterRole','ClusterRoleBinding','ClusterIssuer','ClusterSecretStore','CustomResourceDefinition','PersistentVolume','ProxyClass'}
 def check_unique(items,key,where):
     keys=[key(x) for x in items]
     dup=[k for k,n in collections.Counter(keys).items() if n>1]

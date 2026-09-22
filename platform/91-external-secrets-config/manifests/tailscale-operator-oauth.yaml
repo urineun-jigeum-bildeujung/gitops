@@ -1,0 +1,28 @@
+# 원본은 AWS Secrets Manager의 petflow/tailscale/kubernetes-operator-oauth.
+# JSON 속성명도 아래와 동일하게 client_id/client_secret을 사용한다.
+# Tailscale 공식 Helm chart는 tailscale/operator-oauth Secret의 이 두 키를
+# 각각 /oauth/client_id, /oauth/client_secret 파일로 마운트한다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tailscale-operator-oauth
+  namespace: tailscale
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: operator-oauth
+    creationPolicy: Owner
+  data:
+    - secretKey: client_id
+      remoteRef:
+        key: petflow/tailscale/kubernetes-operator-oauth
+        property: client_id
+    - secretKey: client_secret
+      remoteRef:
+        key: petflow/tailscale/kubernetes-operator-oauth
+        property: client_secret

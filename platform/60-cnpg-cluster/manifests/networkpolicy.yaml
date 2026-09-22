@@ -69,6 +69,19 @@ spec:
           port: 5432
         - protocol: "TCP"
           port: 8000
+    # Tailscale Operator가 만든 DB 전용 proxy Pod만 PostgreSQL에 접근 가능.
+    # ProxyClass의 사용자 정의 라벨을 함께 검사해 tailscale 네임스페이스 전체를 허용하지 않는다.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "tailscale"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "tailscale-db-proxy"
+              app.kubernetes.io/instance: "petflow-dev-db"
+      ports:
+        - protocol: "TCP"
+          port: 5432
     - from:
         - namespaceSelector:
             matchLabels:

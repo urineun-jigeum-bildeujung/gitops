@@ -56,6 +56,8 @@ GRAFANA = labels("grafana", "kube-prometheus-stack")
 ALLOY = labels("alloy", "alloy")
 TEMPO = labels("tempo", "tempo")
 DB = {"cnpg.io/cluster": "petflow-db", "cnpg.io/instanceRole": "primary"}
+TAILSCALE_DB_PROXY = {"app.kubernetes.io/name": "tailscale-db-proxy",
+                      "app.kubernetes.io/instance": "petflow-dev-db"}
 REDIS = dict(labels("redis", "redis"), **{"app.kubernetes.io/component": "master"})
 KAFKA = {"strimzi.io/cluster": "pet-subscription-kafka",
          "strimzi.io/name": "pet-subscription-kafka-kafka",
@@ -161,6 +163,13 @@ class NetworkPolicyTests(unittest.TestCase):
             self.assertEqual(permits(self.redis, s, service_labels(s), 6379), s in REDIS_CLIENTS)
         # A broad pre-existing policy cannot remain: permissions are additive.
         self.assertFalse(self.redis_values["networkPolicy"]["enabled"])
+
+    def test_only_the_dedicated_tailscale_proxy_can_reach_database(self):
+        self.assertTrue(permits(self.db, "tailscale", TAILSCALE_DB_PROXY, 5432))
+        self.assertFalse(permits(self.db, "tailscale", {"app": "operator"}, 5432))
+        self.assertFalse(permits(self.db, "tailscale", {}, 5432))
+        self.assertFalse(permits(self.db, "tailscale", TAILSCALE_DB_PROXY, 8000))
+        self.assertFalse(permits(self.db, "unrelated", TAILSCALE_DB_PROXY, 5432))
 
     def test_kafka_generated_listener_policies_are_restricted_at_source(self):
         for listener in self.kafka["spec"]["kafka"]["listeners"]:

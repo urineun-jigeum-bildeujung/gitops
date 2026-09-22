@@ -1,0 +1,37 @@
+# Proxy Pod에 고정 라벨을 붙여 CNPG NetworkPolicy가 이 DB 프록시만 허용하게 한다.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: petflow-dev-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  statefulSet:
+    pod:
+      labels:
+        app.kubernetes.io/name: tailscale-db-proxy
+        app.kubernetes.io/instance: petflow-dev-db
+---
+# CNPG가 장애조치로 primary Pod를 바꿔도 selector가 새 primary를 자동 추적한다.
+# loadBalancerClass=tailscale이므로 AWS Public/NLB LoadBalancer를 만들지 않는다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: petflow-db-tailnet
+  namespace: database
+  labels:
+    tailscale.com/proxy-class: petflow-dev-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    tailscale.com/hostname: petflow-dev-db
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector:
+    cnpg.io/cluster: petflow-db
+    cnpg.io/instanceRole: primary
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432

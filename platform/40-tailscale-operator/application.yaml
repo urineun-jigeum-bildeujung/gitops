@@ -1,0 +1,46 @@
+# Tailscale Kubernetes Operator. OAuth 값은 Git에 저장하지 않고, wave 3의
+# ExternalSecret이 미리 생성하는 tailscale/operator-oauth Secret을 마운트한다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    chart: tailscale-operator
+    repoURL: https://pkgs.tailscale.com/helmcharts
+    targetRevision: "1.102.4"
+    helm:
+      releaseName: tailscale-operator
+      values: |
+        installCRDs: true
+        operatorConfig:
+          defaultTags:
+            - "tag:k8s-operator"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+        proxyConfig:
+          defaultTags: "tag:k8s"
+        apiServerProxyConfig:
+          mode: "false"
+          allowImpersonation: "false"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

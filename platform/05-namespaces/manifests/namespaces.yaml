@@ -26,6 +26,14 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: tailscale
+  labels:
+    kubernetes.io/metadata.name: tailscale
+    app.kubernetes.io/part-of: petflow-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: member-service
   labels:
     kubernetes.io/metadata.name: member-service
