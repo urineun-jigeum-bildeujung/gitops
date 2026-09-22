@@ -18,9 +18,9 @@ CONNECT 호스트명을 검사한다. 공인 IPv4 전체 예외가 남는 곳은
 | --- | --- |
 | auth | kauth.kakao.com, kapi.kakao.com, www.googleapis.com |
 | payment | api.tosspayments.com |
-| member / review | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com |
+| member / review / order | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com |
 | web | business.juso.go.kr, image.leechs.shop |
-| product / order / notification | 프록시 및 직접 인터넷 예외 없음 |
+| product / notification | 프록시 및 직접 인터넷 예외 없음 |
 
 member/review S3와 web CDN은 예정된 연결도 포함한 목록이다. S3 prefix는 IAM으로
 분리한다. 푸시/SMS 제공자 미정 기능에는 외부 예외를 추가하지 않는다.
@@ -57,7 +57,7 @@ Node >=22.21.0이 필요하다. 구버전은 지원하지 않는 flag로 기동 
 | product/order/payment → Kafka broker | 9092, 9093 |
 | 서비스 8개 → CoreDNS | TCP/UDP 53 |
 | 백엔드 7개 → Tempo | 4318 |
-| member/review → Pod Identity 자격 증명 엔드포인트 | 169.254.170.23:80 |
+| member/review/order → Pod Identity 자격 증명 엔드포인트 | 169.254.170.23:80 |
 | Public ALB → web / Alloy Faro | 3000 / 12347 |
 | web → 예정 Gateway | 8080 |
 | Prometheus → 백엔드 / DB / Alloy / Loki 계열 | 8080 / 9187 / 12345 / 3100·8080·3500 |

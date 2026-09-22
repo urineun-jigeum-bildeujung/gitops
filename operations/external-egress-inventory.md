@@ -24,9 +24,9 @@
 | web | business.juso.go.kr | TCP 443 | 구현 | /addrlink/addrLinkApi.do; Next.js 서버 Route Handler가 주소 검색 |
 | member-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | profiles/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
 | review-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | reviews/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
+| order-service | petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | TCP 443 | 예정 | orders/ 업로드 계약: 객체 존재/크기 확인, 태그 조회 및 confirmed 태그 변경 |
 | web | image.leechs.shop | TCP 443 | 예정·조건부 | 업로드 이미지 CDN; Next.js 서버 이미지 최적화를 사용할 때 Pod 연결 필요 |
 | product-service | 확인된 외부 목적지 없음 | — | 미정 | 상품 이미지 업로드 담당 서비스/계약 미정; 임의 S3 권한을 추가하지 않음 |
-| order-service | 확인된 외부 목적지 없음 | — | 현재 없음 | product/DB/Redis/Kafka/Tempo 등 내부 경로만 확인 |
 | notification-service | 푸시 제공자 도메인 미정 | — | 미정 | 알림 UI의 푸시 안내는 있으나 제공자·발송 구현·담당 서버 경로 미확정 |
 
 각 서비스에는 해당 행의 확정된 목적지만 허용한다. 예정된 S3 목적지도 정책 설계에
@@ -92,7 +92,7 @@
 | 토스 결제 SDK가 불러오는 UI/결제창 | 브라우저 | web Pod 허용 목록에서 제외; 브라우저 도메인 전체는 별도 HAR/CSP 조사 필요 |
 | leechs.shop/auth/callback 및 OAuth callback | 브라우저가 우리 서비스로 접속 | 외부 Egress 예외 아님 |
 | 사용자 이미지 `<img>` | 브라우저 | 서버 fetch와 구분 |
-| 예정된 presigned PUT: petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | 브라우저 | PUT 자체는 Pod 호출 아님; member/review의 확인·태그 API는 위 표처럼 별도 필요 |
+| 예정된 presigned PUT: petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com | 브라우저 | PUT 자체는 Pod 호출 아님; member/review/order의 확인·태그 API는 위 표처럼 별도 필요 |
 | 예정된 CDN 이미지 조회: image.leechs.shop | 브라우저 또는 Next.js 이미지 최적화 서버 | 브라우저 직접 조회는 Pod 예외 아님; 서버 최적화 사용 시 web Pod 예외 필요 |
 | Google Fonts | Next.js 빌드 작업 | web 런타임 예외 아님 |
 
