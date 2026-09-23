@@ -31,6 +31,8 @@ ingress:
   host: ""
   path: /
   pathType: Prefix
+  # 비어 있으면 위 단일 path/pathType을 그대로 사용한다. 항목이 있으면 목록만 렌더링한다.
+  paths: []
   annotations: {}
   tls:
     enabled: false

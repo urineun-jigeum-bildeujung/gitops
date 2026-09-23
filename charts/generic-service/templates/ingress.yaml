@@ -21,6 +21,17 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
+          {{- with .Values.ingress.paths }}
+          {{- range . }}
+          - path: {{ required "ingress.paths[].path is required" .path }}
+            pathType: {{ required "ingress.paths[].pathType is required" .pathType }}
+            backend:
+              service:
+                name: {{ include "generic-service.name" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+          {{- else }}
           - path: {{ .Values.ingress.path }}
             pathType: {{ .Values.ingress.pathType }}
             backend:
@@ -28,4 +39,5 @@ spec:
                 name: {{ include "generic-service.name" . }}
                 port:
                   number: {{ .Values.service.port }}
+          {{- end }}
 {{- end }}
