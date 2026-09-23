@@ -13,6 +13,8 @@ API_PORTS = {"auth-service": 8443, "member-service": 8443, "order-service": 8443
              "review-service": 8443, "notification-service": 8443}
 CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
            "product-service": "member-service", "order-service": "payment-service"}
+OPTIONAL_CALL_ENV = {("review-service", "member-service"): "MEMBER_SERVICE_URL",
+                     ("member-service", "review-service"): "REVIEW_SERVICE_URL"}
 DB_CLIENTS = set(API_PORTS)
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
@@ -146,8 +148,36 @@ class NetworkPolicyTests(unittest.TestCase):
         for target, port in API_PORTS.items():
             for caller in API_PORTS:
                 expected = CALLERS.get(target) == caller
+                env_name = OPTIONAL_CALL_ENV.get((caller, target))
+                if env_name:
+                    deployment = next(d for d in self.rendered[caller] if d["kind"] in {"Deployment", "Rollout"})
+                    env_names = {item["name"] for item in deployment["spec"]["template"]["spec"]["containers"][0].get("env", [])}
+                    expected = env_name in env_names
                 self.assertEqual(permits(self.service_policies[target], caller, service_labels(caller), port), expected)
                 self.assertEqual(permits(self.service_policies[caller], target, service_labels(target), port, "egress"), expected)
+
+    def test_ingress_path_contract(self):
+        self.assertFalse(any(d["kind"] == "Ingress" for d in render()))
+
+        legacy = next(d for d in render(settings=[
+            "ingress.enabled=true", "ingress.host=leechs.shop",
+            "ingress.path=/legacy", "ingress.pathType=Exact"
+        ]) if d["kind"] == "Ingress")
+        legacy_paths = legacy["spec"]["rules"][0]["http"]["paths"]
+        self.assertEqual([(p["path"], p["pathType"]) for p in legacy_paths], [("/legacy", "Exact")])
+
+        multiple = next(d for d in render(settings=[
+            "ingress.enabled=true", "ingress.host=leechs.shop",
+            "ingress.path=/must-not-render", "ingress.pathType=Exact",
+            "ingress.paths[0].path=/api/v1", "ingress.paths[0].pathType=Prefix",
+            "ingress.paths[1].path=/api/auth", "ingress.paths[1].pathType=Prefix"
+        ]) if d["kind"] == "Ingress")
+        multiple_paths = multiple["spec"]["rules"][0]["http"]["paths"]
+        self.assertEqual([(p["path"], p["pathType"]) for p in multiple_paths],
+                         [("/api/v1", "Prefix"), ("/api/auth", "Prefix")])
+        for path in multiple_paths:
+            self.assertEqual(path["backend"]["service"], {"name": "generic-service",
+                                                            "port": {"number": 80}})
 
     def test_dns_tcp_udp_only_to_coredns(self):
         for policy in self.service_policies.values():
