@@ -192,6 +192,51 @@ spec:
                             }
                           }
                         }
+                    # ai(추천/재구매/영양분석) 레포용 job. sever-ci와 credential/폴링 방식은
+                    # 동일하고, 대상 레포와 Job 이름만 다르다. 레포 하나에 recommendation/
+                    # repurchase/nutrition 세 하위 프로젝트가 같이 있어서, ai/Jenkinsfile
+                    # 안에서 어느 경로가 바뀌었는지 보고 스테이지를 나눠 타야 한다(아직 미작성).
+                    - script: >
+                        multibranchPipelineJob('ai-ci') {
+                          branchSources {
+                            branchSource {
+                              source {
+                                github {
+                                  id('ai-repo')
+                                  repoOwner('urineun-jigeum-bildeujung')
+                                  repository('ai')
+                                  repositoryUrl('https://github.com/urineun-jigeum-bildeujung/ai')
+                                  configuredByUrl(false)
+                                  credentialsId('gitops-value-push')
+                                  traits {
+                                    gitHubBranchDiscovery {
+                                      strategyId(3) // 모든 브랜치
+                                    }
+                                    gitHubPullRequestDiscovery {
+                                      strategyId(2) // PR head 커밋 그대로(merge 안 함)
+                                    }
+                                    // sever-ci와 동일한 이유로 fork PR은 탐지하지 않음.
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          factory {
+                            workflowBranchProjectFactory {
+                              scriptPath('Jenkinsfile')
+                            }
+                          }
+                          triggers {
+                            periodicFolderTrigger {
+                              interval('2m')
+                            }
+                          }
+                          orphanedItemStrategy {
+                            discardOldItems {
+                              numToKeep(20)
+                            }
+                          }
+                        }
           persistence:
             enabled: true
             size: 8Gi

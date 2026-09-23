@@ -70,3 +70,10 @@ metadata:
   name: notification-service
   labels:
     kubernetes.io/metadata.name: notification-service
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nutrition
+  labels:
+    kubernetes.io/metadata.name: nutrition
