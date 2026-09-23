@@ -234,8 +234,23 @@ class NetworkPolicyTests(unittest.TestCase):
                          [{"name": "http", "port": 80, "targetPort": 8080, "protocol": "TCP"}])
         certificate = next(d for d in self.gateway_rendered if d["kind"] == "Certificate")
         self.assertIn("client auth", certificate["spec"]["usages"])
-        self.assertFalse(any(d["kind"] in ["Ingress", "ServiceMonitor", "Rollout"]
+        self.assertFalse(any(d["kind"] in ["ServiceMonitor", "Rollout"]
                              for d in self.gateway_rendered))
+        ingress = next(d for d in self.gateway_rendered if d["kind"] == "Ingress")
+        self.assertEqual(ingress["spec"]["rules"][0]["host"], "leechs.shop")
+        self.assertEqual(
+            [(path["path"], path["pathType"], path["backend"]["service"])
+             for path in ingress["spec"]["rules"][0]["http"]["paths"]],
+            [
+                ("/api/v1", "Prefix", {"name": "generic-service", "port": {"number": 80}}),
+                ("/api/auth", "Prefix", {"name": "generic-service", "port": {"number": 80}}),
+            ],
+        )
+        annotations = ingress["metadata"]["annotations"]
+        self.assertEqual(annotations["alb.ingress.kubernetes.io/group.name"], "petflow-public")
+        self.assertEqual(annotations["alb.ingress.kubernetes.io/group.order"], "10")
+        self.assertEqual(annotations["alb.ingress.kubernetes.io/healthcheck-path"],
+                         "/actuator/health")
 
         mounts = {mount["name"]: mount for mount in container["volumeMounts"]}
         self.assertEqual(mounts["mtls-cert"],
@@ -373,10 +388,12 @@ class NetworkPolicyTests(unittest.TestCase):
         web = self.service_policies["web"]
         for address in ["10.0.0.10", "10.0.1.10"]:
             self.assertTrue(permits(web, "external", {}, 3000, ip=address))
+            self.assertTrue(permits(self.gateway_policy, "external", {}, 8080, ip=address))
             self.assertTrue(permits(self.obs["alloy-ingress"], "external", {}, 12347, ip=address))
             self.assertTrue(permits(self.obs["grafana-ingress"], "external", {}, 3000, ip=address))
             self.assertFalse(permits(self.obs["prometheus-ingress"], "external", {}, 9090, ip=address))
         self.assertFalse(permits(web, "external", {}, 3000, ip="10.0.4.10"))
+        self.assertFalse(permits(self.gateway_policy, "external", {}, 8080, ip="10.0.4.10"))
         for address in ["10.0.4.10", "10.0.8.10"]:
             self.assertFalse(permits(self.obs["grafana-ingress"], "external", {}, 3000, ip=address))
             self.assertFalse(permits(self.obs["prometheus-ingress"], "external", {}, 9090, ip=address))
