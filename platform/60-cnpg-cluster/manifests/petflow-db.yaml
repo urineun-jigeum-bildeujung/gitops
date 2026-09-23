@@ -36,9 +36,12 @@ spec:
   cluster:
     name: petflow-db
   databaseReclaimPolicy: retain
+  ensure: present
   extensions:
     - name: pg_bigm
+      ensure: present
     - name: vector
+      ensure: present
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Database

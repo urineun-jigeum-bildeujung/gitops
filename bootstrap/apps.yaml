@@ -15,8 +15,6 @@ spec:
     repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
     targetRevision: main
     path: projects
-    directory:
-      recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
@@ -41,8 +39,6 @@ spec:
     repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
     targetRevision: main
     path: platform
-    directory:
-      recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

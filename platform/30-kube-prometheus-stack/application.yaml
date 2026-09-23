@@ -74,7 +74,10 @@ spec:
                     filterByTraceID: true
           alertmanager:
             config:
-              receivers: [] # TODO: 00번 문서 기준 Discord webhook 연동
+              # 외부 알림 없이 기본 route가 참조할 수 있는 임시 Receiver.
+              # TODO: 00번 문서 기준 Discord webhook 연동
+              receivers:
+                - name: "null"
     # Golden Signals/JVM/에러 대시보드(ConfigMap, grafana sidecar가 자동 로드)와
     # 알림 규칙(PrometheusRule)은 차트 values로 넣기엔 너무 커서 별도 소스로 분리.
     # Jenkins Application(platform/40-jenkins)의 kaniko ServiceAccount와 같은 패턴.
