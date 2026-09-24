@@ -368,6 +368,10 @@ class NetworkPolicyTests(unittest.TestCase):
             self.assertFalse(permits(self.service_policies[s], "observability", GRAFANA, 8080))
             self.assertTrue(permits(self.service_policies[s], "observability", TEMPO, 4318, "egress"))
             self.assertTrue(permits(self.obs["tempo-ingress"], s, service_labels(s), 4318))
+        self.assertTrue(permits(self.obs["tempo-ingress"], "api-gateway",
+                                service_labels("api-gateway"), 4318))
+        self.assertFalse(permits(self.obs["tempo-ingress"], "api-gateway",
+                                 service_labels("unrelated"), 4318))
         self.assertTrue(permits(self.db, "observability", PROM, 9187))
         for source, target, port in [
             (ALLOY, "loki-gateway-ingress", 8080), (ALLOY, "tempo-ingress", 4317),
