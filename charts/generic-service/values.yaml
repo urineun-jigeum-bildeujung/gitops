@@ -45,6 +45,10 @@ resources: {}
   # limits:
   #   memory: 256Mi
 
+# Kubernetes 원본 affinity 스키마. 비어 있으면 기존 Pod spec을 변경하지 않는다.
+# 서비스별 values에서 필요한 워크로드에만 node/pod affinity를 선택적으로 적용한다.
+affinity: {}
+
 autoscaling:
   enabled: false
   minReplicas: 1

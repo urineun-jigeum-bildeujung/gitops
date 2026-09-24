@@ -21,6 +21,10 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "generic-service.name" . }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "generic-service.name" . }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
