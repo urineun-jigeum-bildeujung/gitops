@@ -1,0 +1,205 @@
+# 프론트엔드(web) 대시보드 — 백엔드 대시보드(golden-signals, errors-availability, jvm-runtime)가
+# 요청과 JVM 단위라면, 이건 web(Next.js) 서버 프로세스와 브라우저에서 실제로 겪는 품질을 본다.
+# SSR 서버는 web이 /metrics로 내보내는 Node.js 지표(Prometheus), 브라우저는 Grafana Faro가
+# Alloy를 거쳐 Loki에 쌓은 로그(kind=event/measurement/exception)를 쓴다.
+# Faro 로그는 Alloy가 service_name=petflow-web 라벨을 붙이기 전에는 unknown_service로 저장돼 있어서,
+# 라벨 변경 전후 데이터를 함께 보려고 두 값을 모두 조회한다.
+# kube-prometheus-stack의 grafana sidecar가 grafana_dashboard=1 라벨 붙은 ConfigMap을 자동으로 읽는다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-frontend-web
+  labels:
+    grafana_dashboard: "1"
+data:
+  frontend-web.json: |
+    {
+      "title": "프론트엔드 (web)",
+      "uid": "petflow-frontend-web",
+      "tags": ["petflow", "frontend", "web"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "templating": {"list": [{"name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0}]},
+      "panels": [
+        {"type": "row", "title": "SSR 서버 (Next.js / Node.js)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+        {
+          "type": "timeseries",
+          "title": "메모리 (RSS)",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10}}, "overrides": []},
+          "targets": [
+            {"expr": "process_resident_memory_bytes{namespace=\"web\"}", "legendFormat": "{{pod}} RSS"},
+            {"expr": "kube_pod_container_resource_limits{namespace=\"web\",container=\"generic-service\",resource=\"memory\"}", "legendFormat": "{{pod}} limit"}
+          ],
+          "description": "RSS가 limit에 가까워지면 OOM 재시작 위험. SSR은 트래픽이 몰릴 때 메모리부터 한계에 닿는다."
+        },
+        {
+          "type": "timeseries",
+          "title": "힙 사용량",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 1},
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "bytes", "custom": {"drawStyle": "line", "fillOpacity": 10}}, "overrides": []},
+          "targets": [
+            {"expr": "nodejs_heap_size_used_bytes{namespace=\"web\"}", "legendFormat": "{{pod}} 사용"},
+            {"expr": "nodejs_heap_size_total_bytes{namespace=\"web\"}", "legendFormat": "{{pod}} 전체"}
+          ],
+          "description": "V8 힙. 사용량이 계속 우상향하면 메모리 누수 의심."
+        },
+        {
+          "type": "timeseries",
+          "title": "이벤트루프 지연",
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "fillOpacity": 10}}, "overrides": []},
+          "targets": [
+            {"expr": "nodejs_eventloop_lag_seconds{namespace=\"web\"}", "legendFormat": "{{pod}} 평균"},
+            {"expr": "nodejs_eventloop_lag_p99_seconds{namespace=\"web\"}", "legendFormat": "{{pod}} p99"}
+          ],
+          "description": "Node가 요청을 처리하다 막힌 시간. 늘어나면 응답이 느려진다."
+        },
+        {
+          "type": "timeseries",
+          "title": "CPU 사용량 (코어)",
+          "gridPos": {"h": 8, "w": 6, "x": 8, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 10}}, "overrides": []},
+          "targets": [
+            {"expr": "rate(process_cpu_seconds_total{namespace=\"web\"}[5m])", "legendFormat": "{{pod}}"}
+          ],
+          "description": "초당 사용한 CPU 코어 수(1 = 코어 1개)."
+        },
+        {
+          "type": "timeseries",
+          "title": "GC 시간 비율",
+          "gridPos": {"h": 8, "w": 6, "x": 14, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "custom": {"drawStyle": "line", "fillOpacity": 10}}, "overrides": []},
+          "targets": [
+            {"expr": "sum by (kind) (rate(nodejs_gc_duration_seconds_sum{namespace=\"web\"}[5m]))", "legendFormat": "{{kind}}"}
+          ],
+          "description": "가비지 컬렉션에 쓴 시간 비율."
+        },
+        {
+          "type": "stat",
+          "title": "파드 재시작 수",
+          "description": "누적 재시작 횟수. 늘면 OOM이나 크래시를 확인한다.",
+          "gridPos": {"h": 8, "w": 4, "x": 20, "y": 9},
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 3}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "sum(kube_pod_container_status_restarts_total{namespace=\"web\",container=\"generic-service\"})"}
+          ]
+        },
+        {"type": "row", "title": "브라우저 (Grafana Faro RUM)", "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17}},
+        {
+          "type": "stat",
+          "title": "LCP (p75)",
+          "description": "가장 큰 콘텐츠가 그려지는 시간. 조회 기간의 75번째 백분위. 초록 ≤2500, 빨강 >4000 (Google Core Web Vitals 기준).",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 18},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "ms", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 2500}, {"color": "red", "value": 4000}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "quantile_over_time(0.75, {service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"type=web-vitals\" | logfmt | unwrap value_lcp [$__range]) by (app_name)", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "FCP (p75)",
+          "description": "첫 콘텐츠가 그려지는 시간. 조회 기간의 75번째 백분위. 초록 ≤1800, 빨강 >3000 (Google Core Web Vitals 기준).",
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 18},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "ms", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1800}, {"color": "red", "value": 3000}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "quantile_over_time(0.75, {service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"type=web-vitals\" | logfmt | unwrap value_fcp [$__range]) by (app_name)", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "INP (p75)",
+          "description": "누른 뒤 화면이 반응하기까지의 시간. 조회 기간의 75번째 백분위. 초록 ≤200, 빨강 >500 (Google Core Web Vitals 기준).",
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 18},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "ms", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 200}, {"color": "red", "value": 500}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "quantile_over_time(0.75, {service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"type=web-vitals\" | logfmt | unwrap value_inp [$__range]) by (app_name)", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "TTFB (p75)",
+          "description": "서버 첫 응답까지의 시간. 조회 기간의 75번째 백분위. 초록 ≤800, 빨강 >1800 (Google Core Web Vitals 기준).",
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 18},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "ms", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 800}, {"color": "red", "value": 1800}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "quantile_over_time(0.75, {service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"type=web-vitals\" | logfmt | unwrap value_time_to_first_byte [$__range]) by (app_name)", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "CLS (p75)",
+          "description": "화면이 밀리는 정도(단위 없음). 조회 기간의 75번째 백분위. 초록 ≤0.1, 빨강 >0.25 (Google Core Web Vitals 기준).",
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 18},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.1}, {"color": "red", "value": 0.25}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "quantile_over_time(0.75, {service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"type=web-vitals\" | logfmt | unwrap value_cls [$__range]) by (app_name)", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "세션 수",
+          "description": "조회 기간에 Faro로 수집된 익명 세션 수.",
+          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 18},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "count(sum by (session_id) (count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" | logfmt [$__range])))", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "이벤트 종류별 발생량",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "fillOpacity": 60, "stacking": {"mode": "normal"}}}, "overrides": []},
+          "targets": [
+            {"expr": "sum by (kind) (count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" | logfmt [$__interval]))", "legendFormat": "{{kind}}"}
+          ],
+          "description": "kind = event(화면 이벤트) / measurement(웹 바이탈) / exception(오류) / log(콘솔)."
+        },
+        {
+          "type": "timeseries",
+          "title": "예외 발생 수",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "fillOpacity": 60}}, "overrides": []},
+          "targets": [
+            {"expr": "sum(count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"kind=exception\" [$__interval]))", "legendFormat": "예외"}
+          ],
+          "description": "브라우저에서 잡힌 JS 오류 수."
+        },
+        {
+          "type": "logs",
+          "title": "최근 예외",
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 30},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "description": "가장 최근 브라우저 예외. 민감정보는 수집 서버(Alloy)에서 가린 뒤 저장된다.",
+          "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending"},
+          "targets": [
+            {"expr": "{service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"kind=exception\"", "maxLines": 50}
+          ]
+        }
+      ]
+    }
