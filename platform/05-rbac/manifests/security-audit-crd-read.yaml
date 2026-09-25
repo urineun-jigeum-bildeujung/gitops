@@ -1,0 +1,73 @@
+# EKS ViewPolicy가 다루지 않는 점검 대상 커스텀 리소스만 읽도록 제한한다.
+# Secrets 및 변경 권한은 포함하지 않는다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: security-audit-crd-read
+  namespace: database
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters", "databases", "backups", "scheduledbackups", "poolers"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-audit-crd-read
+  namespace: database
+subjects:
+  - kind: Group
+    name: petflow-k8s-audit-crd
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: security-audit-crd-read
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: security-audit-crd-read
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-audit-crd-read
+  namespace: argocd
+subjects:
+  - kind: Group
+    name: petflow-k8s-audit-crd
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: security-audit-crd-read
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: security-audit-crd-read
+  namespace: observability
+rules:
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["prometheusrules", "prometheuses", "alertmanagers", "alertmanagerconfigs", "servicemonitors", "podmonitors"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-audit-crd-read
+  namespace: observability
+subjects:
+  - kind: Group
+    name: petflow-k8s-audit-crd
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: security-audit-crd-read
+  apiGroup: rbac.authorization.k8s.io

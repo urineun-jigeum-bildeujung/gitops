@@ -1,0 +1,25 @@
+# EKS Access Entry의 petflow-db-port-forward 그룹에만 부여한다.
+# 포트포워드는 DB 계정 인증을 대신하지 않는다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: security-db-port-forward
+  namespace: database
+rules:
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-db-port-forward
+  namespace: database
+subjects:
+  - kind: Group
+    name: petflow-db-port-forward
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: security-db-port-forward
+  apiGroup: rbac.authorization.k8s.io
