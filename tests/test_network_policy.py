@@ -363,6 +363,14 @@ class NetworkPolicyTests(unittest.TestCase):
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             self.assertNotEqual(result.returncode, 0)
 
+    def test_web_metrics_scrape_allows_only_prometheus_on_app_port(self):
+        # Next.js는 3000 하나로 /metrics까지 서빙한다. 백엔드처럼 8080 검사만 있으면 web의
+        # Prometheus 허용이 빠져도 통과하므로(스크레이프가 시간 초과로 조용히 실패했다) 따로 검증한다.
+        web = self.service_policies["web"]
+        self.assertTrue(permits(web, "observability", PROM, 3000))
+        self.assertFalse(permits(web, "observability", GRAFANA, 3000))
+        self.assertFalse(permits(web, "observability", PROM, 8080))
+
     def test_metrics_logs_traces_queries_and_rollouts(self):
         for s in API_PORTS:
             self.assertTrue(permits(self.service_policies[s], "observability", PROM, 8080))
