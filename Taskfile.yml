@@ -7,7 +7,13 @@ tasks:
       - task: validate:chart
       - task: validate:yaml
       - task: validate:network-policy
+      - task: validate:alloy-redaction
       - task: validate:resource-duplicates
+
+  validate:alloy-redaction:
+    desc: Faro 로그 민감정보 마스킹 규칙(Alloy stage.replace)이 실제 Alloy 동작대로 가리는지 검증
+    cmds:
+      - python3 tests/test_alloy_faro_redaction.py
 
   validate:resource-duplicates:
     desc: 중복 YAML 키·리소스·환경변수·포트·볼륨·정책 규칙 검사
