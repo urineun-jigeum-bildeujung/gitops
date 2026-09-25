@@ -1,0 +1,29 @@
+configs:
+  cm:
+    url: https://argocd.leechs.shop
+
+server:
+  ingress:
+    enabled: true
+    controller: generic
+    ingressClassName: alb
+    hostname: argocd.leechs.shop
+    path: /
+    pathType: Prefix
+    tls: false
+    annotations:
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:297165773875:certificate/38399d86-e76d-4323-9b3d-721b32acd2ce
+      alb.ingress.kubernetes.io/group.name: petflow-dev-management
+      alb.ingress.kubernetes.io/group.order: "10"
+      alb.ingress.kubernetes.io/healthcheck-path: /healthz
+      alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/load-balancer-name: petflow-dev-management
+      alb.ingress.kubernetes.io/manage-backend-security-group-rules: "true"
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/security-groups: petflow-dev-management-alb
+      alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-2016-08
+      alb.ingress.kubernetes.io/success-codes: "200"
+      alb.ingress.kubernetes.io/target-type: ip

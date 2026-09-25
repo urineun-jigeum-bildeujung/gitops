@@ -47,7 +47,7 @@ aws eks update-kubeconfig --name petflow-eks --region ap-northeast-2
 task bootstrap
 ```
 
-`task bootstrap`은 ArgoCD, Jenkins Credential, `root-app.yaml`을 모두 복구한다. Jenkins Git Credential이
+`task bootstrap`은 `helm-values/argocd.yaml`을 포함해 ArgoCD, Jenkins Credential, `root-app.yaml`을 모두 복구한다. Jenkins Git Credential이
 없을 때는 로그인된 GitHub CLI와 `sever` 읽기·`gitops-value` 쓰기 권한이 필요하다. 유효한 Secret이 이미
 있으면 GitHub CLI 인증 없이도 기존 값을 유지한다. Controller/ALB 같은 클러스터 핵심 경로만 복구할 때는
 GitHub 인증에 의존하지 않는 다음 명령을 사용한다.
@@ -103,6 +103,21 @@ kubectl get ingress -A -o wide
 정상 기준은 Application `Synced/Healthy`, Controller Pod `Running/Ready`, Web Ingress `ADDRESS`에
 ALB DNS가 표시되는 상태다. `ingress-nginx`는 `ingressClassName: nginx`만 담당하므로 두 Controller는
 서로 대체하지 않고 함께 운영한다.
+
+### Argo CD·Jenkins Tailscale 관리 접근
+
+`helm-values/argocd.yaml`과 `platform/40-jenkins/application.yaml`은 `petflow-dev-management`
+IngressGroup의 Internal ALB 하나를 공유한다. Argo CD는 HTTPS backend와 `/healthz`, Jenkins는
+HTTP backend와 `/login`을 사용한다. 둘 다 Terraform이 만드는 `petflow-dev-management-alb`
+frontend SG를 이름으로 참조하고 Controller가 backend SG 규칙을 관리한다.
+
+| 서비스 | 주소 | 접근 조건 |
+|---|---|---|
+| Argo CD | `https://argocd.leechs.shop` | Tailscale 연결 |
+| Jenkins | `https://jenkins.leechs.shop` | Tailscale 연결 |
+
+Public Web/Gateway 그룹과 ingress-nginx 설정은 이 구성으로 변경하지 않는다. Route53 Alias와
+frontend SG는 Infra 저장소가 관리한다.
 
 ### Grafana 공개·Prometheus 비공개 접근
 
