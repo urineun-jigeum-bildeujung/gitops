@@ -54,5 +54,14 @@ class SchedulingTest(unittest.TestCase):
             self.assertEqual(pod_spec["affinity"], affinity)
 
 
+    def test_canary_analysis_handles_no_traffic(self):
+        documents = render({"canary": {"enabled": True, "analysis": {"enabled": True}}})
+        analysis = next(document for document in documents
+                        if document["kind"] == "AnalysisTemplate")
+        query = analysis["spec"]["metrics"][0]["provider"]["prometheus"]["query"]
+        self.assertIn("or vector(0)", query)
+        self.assertIn("clamp_min", query)
+
+
 if __name__ == "__main__":
     unittest.main()
