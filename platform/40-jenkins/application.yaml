@@ -47,6 +47,30 @@ spec:
               - job-dsl # JCasC의 jobs: 섹션(아래)이 이 플러그인으로 동작함
               - github-branch-source # PR 인식(env.CHANGE_ID/CHANGE_TARGET)에 필요, 아래 jobs: 참고
             resources: {}
+            jenkinsUrlProtocol: https
+            jenkinsUrl: https://jenkins.leechs.shop
+            ingress:
+              enabled: true
+              ingressClassName: alb
+              hostName: jenkins.leechs.shop
+              path: /
+              pathType: Prefix
+              annotations:
+                alb.ingress.kubernetes.io/backend-protocol: HTTP
+                alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-northeast-2:297165773875:certificate/38399d86-e76d-4323-9b3d-721b32acd2ce
+                alb.ingress.kubernetes.io/group.name: petflow-dev-management
+                alb.ingress.kubernetes.io/group.order: "20"
+                alb.ingress.kubernetes.io/healthcheck-path: /login
+                alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+                alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+                alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+                alb.ingress.kubernetes.io/load-balancer-name: petflow-dev-management
+                alb.ingress.kubernetes.io/manage-backend-security-group-rules: "true"
+                alb.ingress.kubernetes.io/scheme: internal
+                alb.ingress.kubernetes.io/security-groups: petflow-dev-management-alb
+                alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-2016-08
+                alb.ingress.kubernetes.io/success-codes: "200"
+                alb.ingress.kubernetes.io/target-type: ip
             # gitops-value push용 credential(git-username/git-token)을 JCasC.configScripts.credentials가
             # ${git-username}/${git-token}으로 읽어갈 수 있게 파일로 마운트. 값 자체는
             # gitops Taskfile의 bootstrap:jenkins-git-credentials가 별도로 만들어둔 Secret.
