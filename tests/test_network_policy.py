@@ -14,7 +14,8 @@ API_PORTS = {"auth-service": 8443, "member-service": 8443, "order-service": 8443
 CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
            "product-service": "member-service", "order-service": "payment-service"}
 OPTIONAL_CALL_ENV = {("review-service", "member-service"): "MEMBER_SERVICE_URL",
-                     ("member-service", "review-service"): "REVIEW_SERVICE_URL"}
+                     ("member-service", "review-service"): "REVIEW_SERVICE_URL",
+                     ("notification-service", "product-service"): "PRODUCT_SERVICE_URL"}
 DB_CLIENTS = set(API_PORTS)
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
