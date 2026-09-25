@@ -1,4 +1,4 @@
-{{- if not (or .Values.canary.enabled .Values.blueGreen.enabled) }}
+{{- if and .Values.deployment.enabled (not (or .Values.canary.enabled .Values.blueGreen.enabled)) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
