@@ -27,6 +27,7 @@ tasks:
       - helm template test charts/generic-service --set image.repository=test --set image.tag=latest > /dev/null
       - helm template test charts/generic-service --set image.repository=test --set image.tag=latest --set canary.enabled=true --set autoscaling.enabled=true --set networkPolicy.enabled=true > /dev/null
       - python3 tests/test_scheduling.py
+      - python3 tests/test_batch_workload.py
       - echo "차트 렌더링 검증 통과"
 
   validate:yaml:

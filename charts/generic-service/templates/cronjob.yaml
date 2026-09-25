@@ -8,17 +8,49 @@ metadata:
     {{- include "generic-service.labels" $ | nindent 4 }}
 spec:
   schedule: {{ .schedule | quote }}
+  {{- with .timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
   concurrencyPolicy: {{ .concurrencyPolicy | default "Forbid" }}
   suspend: {{ .suspend | default false }}
+  {{- with .startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  {{- if hasKey . "successfulJobsHistoryLimit" }}
+  successfulJobsHistoryLimit: {{ .successfulJobsHistoryLimit }}
+  {{- end }}
+  {{- if hasKey . "failedJobsHistoryLimit" }}
+  failedJobsHistoryLimit: {{ .failedJobsHistoryLimit }}
+  {{- end }}
   jobTemplate:
     spec:
+      {{- if hasKey . "backoffLimit" }}
+      backoffLimit: {{ .backoffLimit }}
+      {{- end }}
+      {{- with .activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ . }}
+      {{- end }}
+      {{- if hasKey . "ttlSecondsAfterFinished" }}
+      ttlSecondsAfterFinished: {{ .ttlSecondsAfterFinished }}
+      {{- end }}
       template:
         metadata:
           labels:
             {{- include "generic-service.selectorLabels" $ | nindent 12 }}
+            {{- with $.Values.podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $.Values.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         spec:
           serviceAccountName: {{ include "generic-service.name" $ }}
           restartPolicy: {{ .restartPolicy | default "OnFailure" }}
+          {{- with (default $.Values.affinity .affinity) }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
             - name: {{ .name }}
               image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
@@ -40,6 +72,14 @@ spec:
                 {{- if not (or $env $.Values.externalEgress.enabled) }}
                 []
                 {{- end }}
+              {{- with .volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               resources:
                 {{- toYaml (default $.Values.resources .resources) | nindent 16 }}
+          {{- with .volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end }}
