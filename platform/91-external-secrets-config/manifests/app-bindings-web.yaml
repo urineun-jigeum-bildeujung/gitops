@@ -1,0 +1,20 @@
+# Web 서버의 주소검색 Route Handler가 사용하는 행정안전부 승인키.
+# 실제 값은 AWS Secrets Manager에만 두고, Kubernetes Secret에는 같은 키 이름으로 전달한다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: juso-credentials
+  namespace: web
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: juso-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: JUSO_CONFM_KEY
+      remoteRef:
+        key: petflow/web/juso
+        property: JUSO_CONFM_KEY
