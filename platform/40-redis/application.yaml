@@ -117,7 +117,19 @@ spec:
         commonConfiguration: |-
           appendonly yes
           save ""
+          include /opt/bitnami/redis/acl/users.conf
         master:
+          extraVolumes:
+            - name: redis-acl-users
+              secret:
+                secretName: redis-auth
+                items:
+                  - key: users.conf
+                    path: users.conf
+          extraVolumeMounts:
+            - name: redis-acl-users
+              mountPath: /opt/bitnami/redis/acl
+              readOnly: true
           resources:
             requests:
               cpu: 100m
