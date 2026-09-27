@@ -65,10 +65,29 @@ Secret은 자동으로 덮어쓰지 않고 실패한다. Git Secret이 누락됐
 task bootstrap:credentials KUBE_CONTEXT=petflow-dev
 ```
 
+보안팀 Jenkins 계정 `security-audit`의 비밀번호는 최초 실행 때 AWS Secrets Manager의
+`petflow/jenkins/security-audit-password`에 한 번 생성한다. 이후에는 같은 값을
+`jenkins/jenkins-audit-credentials` Secret으로 복원하며, 값이 다르면 자동 교체하지 않고
+실패한다. 실행 주체는 계정 `297165773875`에서 `sts:GetCallerIdentity`,
+`secretsmanager:GetSecretValue` 권한이 필요하다. 최초 생성에는 `secretsmanager:CreateSecret`
+권한도 필요하다. Secret 원문은 Git이나 Terraform State에 저장하지 않는다.
+보안팀 비밀번호만 복원할 때는 `task bootstrap:jenkins-audit-secret KUBE_CONTEXT=petflow-dev`를 쓴다.
+Jenkins 내부 계정과 권한은 `platform/40-jenkins/application.yaml`의 JCasC가 관리한다.
+security IAM 사용자는 `jenkins` 네임스페이스의 포트포워딩으로 Jenkins에 연결한 뒤,
+`security-audit` 계정으로 로그인한다.
+
+`security-audit`에는 `Overall/Read`, `Overall/SystemRead`, `Job/Read`,
+`Job/ExtendedRead`, `Credentials/View`만 부여한다. Jenkins 관리자 권한과
+빌드 실행·설정 변경 권한은 부여하지 않는다. 배포 후 해당 계정으로 시스템·Job·Credential
+메타데이터를 조회하고, 변경 기능과 Secret/Token 원문 접근이 차단되는지 확인한다.
+포트포워딩은 `kubectl --context petflow-dev -n jenkins port-forward svc/jenkins 8080:8080`으로
+열고 `http://localhost:8080`에서 로그인할 수 있다.
+
 관리자 Secret은 기존 값이 있으면 유지되지만 클러스터와 함께 삭제된 경우 현재 공식 bootstrap이 새 랜덤
 비밀번호를 만든다. 클러스터 세대 사이에 같은 관리자 비밀번호를 복원하는 영구 공급원은 아직 없으며,
 필요하면 AWS Secrets Manager 같은 보존 저장소로 옮기는 작업을 별도 범위로 진행한다. 개별 단계는
 `task bootstrap:jenkins-admin-secret`, `task bootstrap:jenkins-git-credentials`,
+`task bootstrap:jenkins-audit-secret`,
 `task bootstrap:argocd`, `task bootstrap:root-app`으로 실행할 수 있다.
 
 커밋 전 검증은 `task validate` (Helm 차트 렌더링 + 전체 YAML 문법 검사).

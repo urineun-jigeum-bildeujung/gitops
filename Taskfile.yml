@@ -70,7 +70,7 @@ tasks:
       - task: bootstrap:root-app
 
   bootstrap:credentials:
-    desc: Jenkins 운영 Credential 보존·복구 (Git Secret 누락 시 GitHub CLI 로그인 필요)
+    desc: Jenkins 운영 Credential 보존·복구 (Audit 비밀번호는 AWS Secrets Manager에서 복원)
     cmds:
       - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope all
 
@@ -111,6 +111,11 @@ tasks:
     desc: gitops-value push용 GitHub credential Secret 생성 (없을 때만, gh CLI 로그인 필요)
     cmds:
       - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope git
+
+  bootstrap:jenkins-audit-secret:
+    desc: 보안팀 Jenkins 계정의 고정 비밀번호를 AWS Secrets Manager에서 복원
+    cmds:
+      - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope audit
 
   bootstrap:root-app:
     desc: root-app.yaml apply — 여기서부터는 ArgoCD가 나머지(플랫폼 addon, 서비스)를 전부 cascade로 배포

@@ -6,6 +6,10 @@ set -Eeuo pipefail
 KUBECTL_BIN="${KUBECTL_BIN:-kubectl}"
 GH_BIN="${GH_BIN:-gh}"
 OPENSSL_BIN="${OPENSSL_BIN:-openssl}"
+AWS_BIN="${AWS_BIN:-aws}"
+AWS_REGION="${AWS_REGION:-ap-northeast-2}"
+JENKINS_AUDIT_AWS_ACCOUNT_ID="${JENKINS_AUDIT_AWS_ACCOUNT_ID:-297165773875}"
+JENKINS_AUDIT_AWS_SECRET_NAME="${JENKINS_AUDIT_AWS_SECRET_NAME:-petflow/jenkins/security-audit-password}"
 KUBE_CONTEXT="${KUBE_CONTEXT:-petflow-dev}"
 JENKINS_NAMESPACE="${JENKINS_NAMESPACE:-jenkins}"
 SCOPE="all"
@@ -14,6 +18,7 @@ GIT_USERNAME=""
 GIT_TOKEN=""
 ADMIN_USERNAME=""
 ADMIN_PASSWORD=""
+AUDIT_PASSWORD=""
 
 log() {
   printf '[jenkins-credentials] %s\n' "$*"
@@ -26,10 +31,11 @@ fail() {
 
 usage() {
   cat <<'EOF'
-Usage: bootstrap-jenkins-credentials.sh [--context CONTEXT] [--namespace NAMESPACE] [--scope all|admin|git]
+Usage: bootstrap-jenkins-credentials.sh [--context CONTEXT] [--namespace NAMESPACE] [--scope all|admin|git|audit]
 
 Existing valid Secrets are preserved. A Secret that exists with a missing or empty
 required key is not overwritten; the command fails so credentials are not rotated.
+The audit password is retained in AWS Secrets Manager across cluster rebuilds.
 EOF
 }
 
@@ -39,11 +45,13 @@ cleanup() {
       "${TEMP_DIR}/jenkins-admin-user" \
       "${TEMP_DIR}/jenkins-admin-password" \
       "${TEMP_DIR}/git-username" \
-      "${TEMP_DIR}/git-token"
+      "${TEMP_DIR}/git-token" \
+      "${TEMP_DIR}/audit-password"
     rmdir -- "${TEMP_DIR}" 2>/dev/null || true
   fi
   GIT_TOKEN=""
   ADMIN_PASSWORD=""
+  AUDIT_PASSWORD=""
 }
 trap cleanup EXIT
 
@@ -75,8 +83,8 @@ while (($# > 0)); do
 done
 
 case "${SCOPE}" in
-  all|admin|git) ;;
-  *) fail "--scope는 all, admin, git 중 하나여야 합니다: ${SCOPE}" ;;
+  all|admin|git|audit) ;;
+  *) fail "--scope는 all, admin, git, audit 중 하나여야 합니다: ${SCOPE}" ;;
 esac
 
 [[ -n "${KUBE_CONTEXT}" ]] || fail 'Kubernetes context가 비어 있습니다.'
@@ -139,6 +147,7 @@ log "대상 확인: context=${KUBE_CONTEXT}, namespace=${JENKINS_NAMESPACE}, sco
 
 admin_missing=false
 git_missing=false
+audit_missing=false
 
 if [[ "${SCOPE}" == all || "${SCOPE}" == admin ]]; then
   if secret_exists jenkins-admin-credentials; then
@@ -155,6 +164,15 @@ if [[ "${SCOPE}" == all || "${SCOPE}" == git ]]; then
     log 'jenkins-git-credentials 이미 유효함 — 기존 값 유지'
   else
     git_missing=true
+  fi
+fi
+
+if [[ "${SCOPE}" == all || "${SCOPE}" == audit ]]; then
+  if secret_exists jenkins-audit-credentials; then
+    validate_secret jenkins-audit-credentials audit-password
+    log 'jenkins-audit-credentials 이미 유효함 — 저장된 값과 일치 여부 확인 예정'
+  else
+    audit_missing=true
   fi
 fi
 
@@ -184,7 +202,49 @@ if [[ "${admin_missing}" == true ]]; then
   [[ -n "${ADMIN_PASSWORD}" ]] || fail 'Jenkins 관리자 비밀번호 생성에 실패했습니다.'
 fi
 
-if [[ "${admin_missing}" == true || "${git_missing}" == true ]]; then
+if [[ "${SCOPE}" == all || "${SCOPE}" == audit ]]; then
+  command -v "${AWS_BIN}" >/dev/null 2>&1 || fail "보안팀 비밀번호 복원에 AWS CLI가 필요합니다: ${AWS_BIN}"
+  aws_account="$("${AWS_BIN}" sts get-caller-identity --query Account --output text 2>/dev/null)" \
+    || fail 'AWS 계정 확인에 실패했습니다.'
+  [[ "${aws_account}" == "${JENKINS_AUDIT_AWS_ACCOUNT_ID}" ]] \
+    || fail "AWS 계정이 예상값과 다릅니다: ${aws_account}"
+  if aws_result="$("${AWS_BIN}" secretsmanager get-secret-value \
+    --region "${AWS_REGION}" --secret-id "${JENKINS_AUDIT_AWS_SECRET_NAME}" \
+    --query SecretString --output text 2>&1)"; then
+    AUDIT_PASSWORD="${aws_result}"
+    [[ -n "${AUDIT_PASSWORD}" && "${AUDIT_PASSWORD}" != None ]] \
+      || fail "Secrets Manager ${JENKINS_AUDIT_AWS_SECRET_NAME}의 SecretString이 비어 있습니다."
+  elif [[ "${aws_result}" == *ResourceNotFoundException* ]]; then
+    [[ "${audit_missing}" == true ]] \
+      || fail "기존 Jenkins audit Secret이 있는데 AWS 보존 Secret이 없습니다. 자동 재발급하지 않습니다: ${JENKINS_AUDIT_AWS_SECRET_NAME}"
+    command -v "${OPENSSL_BIN}" >/dev/null 2>&1 || fail "보안팀 비밀번호 생성에 openssl이 필요합니다: ${OPENSSL_BIN}"
+    AUDIT_PASSWORD="$("${OPENSSL_BIN}" rand -hex 24)"
+    [[ -n "${AUDIT_PASSWORD}" ]] || fail '보안팀 비밀번호 생성에 실패했습니다.'
+    prepare_temp_dir
+    write_private_file "${TEMP_DIR}/audit-password" "${AUDIT_PASSWORD}"
+    "${AWS_BIN}" secretsmanager create-secret \
+      --region "${AWS_REGION}" --name "${JENKINS_AUDIT_AWS_SECRET_NAME}" \
+      --secret-string "file://${TEMP_DIR}/audit-password" --query ARN --output text >/dev/null \
+      || fail "Secrets Manager ${JENKINS_AUDIT_AWS_SECRET_NAME} 생성에 실패했습니다. 비밀번호는 출력하지 않았습니다."
+    log "Secrets Manager ${JENKINS_AUDIT_AWS_SECRET_NAME} 최초 생성 완료 (값 비공개)"
+  else
+    fail "Secrets Manager ${JENKINS_AUDIT_AWS_SECRET_NAME} 조회에 실패했습니다. AWS 자격증명과 GetSecretValue 권한을 확인하세요."
+  fi
+
+  if [[ "${audit_missing}" == false ]]; then
+    command -v base64 >/dev/null 2>&1 || fail '기존 보안팀 Secret 검증에 base64가 필요합니다.'
+    audit_encoded="$(kctl --namespace "${JENKINS_NAMESPACE}" get secret jenkins-audit-credentials \
+      -o 'go-template={{index .data "audit-password"}}')"
+    audit_existing="$(printf '%s' "${audit_encoded}" | base64 --decode)" \
+      || fail '기존 보안팀 Secret 값을 디코딩하지 못했습니다.'
+    [[ "${audit_existing}" == "${AUDIT_PASSWORD}" ]] \
+      || fail '기존 Jenkins audit Secret과 AWS 보존 Secret의 값이 다릅니다. 자동 교체하지 않습니다.'
+    audit_existing=""
+    audit_encoded=""
+  fi
+fi
+
+if [[ "${admin_missing}" == true || "${git_missing}" == true || "${audit_missing}" == true ]]; then
   if ! kctl get namespace "${JENKINS_NAMESPACE}" >/dev/null 2>&1; then
     kctl create namespace "${JENKINS_NAMESPACE}"
   fi
@@ -212,6 +272,16 @@ if [[ "${git_missing}" == true ]]; then
   GIT_TOKEN=""
   log 'jenkins-git-credentials 누락분 생성 완료'
   validate_secret jenkins-git-credentials git-username git-token
+fi
+
+if [[ "${audit_missing}" == true ]]; then
+  prepare_temp_dir
+  write_private_file "${TEMP_DIR}/audit-password" "${AUDIT_PASSWORD}"
+  kctl --namespace "${JENKINS_NAMESPACE}" create secret generic jenkins-audit-credentials \
+    --from-file=audit-password="${TEMP_DIR}/audit-password"
+  AUDIT_PASSWORD=""
+  log 'jenkins-audit-credentials 누락분 생성 완료 (AWS 보존값 사용)'
+  validate_secret jenkins-audit-credentials audit-password
 fi
 
 log 'Jenkins 필수 Secret 준비 완료'

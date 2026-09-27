@@ -44,9 +44,12 @@ spec:
               - pipeline-utility-steps
               - kubernetes
               - configuration-as-code
+              - matrix-auth # admin과 보안팀 계정의 권한을 분리한다.
+              - extended-read-permission # 시스템·Job 설정을 변경 없이 조회한다.
               - job-dsl # JCasC의 jobs: 섹션(아래)이 이 플러그인으로 동작함
               - github-branch-source # PR 인식(env.CHANGE_ID/CHANGE_TARGET)에 필요, 아래 jobs: 참고
             resources: {}
+            javaOpts: "-Djenkins.security.SystemReadPermission=true -Dhudson.security.ExtendedReadPermission=true"
             jenkinsUrlProtocol: https
             jenkinsUrl: https://jenkins.leechs.shop
             ingress:
@@ -79,6 +82,8 @@ spec:
                 keyName: git-username
               - name: jenkins-git-credentials
                 keyName: git-token
+              - name: jenkins-audit-credentials
+                keyName: audit-password
             # admin 계정 Secret을 차트가 직접 만들게 두면(기본값, existingSecret 미지정) ArgoCD가
             # helm template을 오프라인 렌더링하는 특성상 lookup 함수가 항상 "없음"으로 평가돼서
             # 매 sync마다 비번이 새 랜덤값으로 바뀜 — 실제 Jenkins는 마지막 pod 부팅 시점 비번을
@@ -98,6 +103,32 @@ spec:
             # JCasC로 코드화해두면 Jenkins가 부팅할 때마다(PVC가 새것이든 아니든) 자동으로
             # 다시 만들어져서 더 이상 손으로 재설정할 필요가 없음.
             JCasC:
+              securityRealm: |-
+                local:
+                  allowsSignup: false
+                  enableCaptcha: false
+                  users:
+                    - id: "${chart-admin-username}"
+                      name: "Jenkins Admin"
+                      password: "${chart-admin-password}"
+                    - id: "security-audit"
+                      name: "Security Audit"
+                      password: "${jenkins-audit-credentials-audit-password}"
+              authorizationStrategy: |-
+                globalMatrix:
+                  entries:
+                    - user:
+                        name: "${chart-admin-username}"
+                        permissions:
+                          - "Overall/Administer"
+                    - user:
+                        name: "security-audit"
+                        permissions:
+                          - "Overall/Read"
+                          - "Overall/SystemRead"
+                          - "Job/Read"
+                          - "Job/ExtendedRead"
+                          - "Credentials/View"
               configScripts:
                 # 같은 credential(gitops-value-push)을 sever-ci Job의 github 소스가 GitHub API로
                 # 브랜치/PR을 조회할 때도 그대로 재사용함 — 둘 다 결국 같은 GitHub 계정 PAT라
