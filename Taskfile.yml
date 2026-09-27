@@ -74,6 +74,11 @@ tasks:
     cmds:
       - ./scripts/bootstrap-jenkins-credentials.sh --context '{{.KUBE_CONTEXT | default "petflow-dev"}}' --scope all
 
+  bootstrap:grafana-audit-user:
+    desc: Grafana security-audit 계정을 AWS Secrets Manager 고정 비밀번호와 Editor 권한으로 복구
+    cmds:
+      - KUBE_CONTEXT='{{.KUBE_CONTEXT | default "petflow-dev"}}' ./scripts/bootstrap-grafana-audit-user.sh
+
   bootstrap:argocd:
     desc: ArgoCD Helm 설치/업그레이드 (이미 있으면 그대로 유지, --install이라 몇 번을 실행해도 안전)
     vars:
@@ -131,3 +136,9 @@ tasks:
     cmds:
       - 'echo -n "ID: " && kubectl get secret -n jenkins jenkins-admin-credentials -o jsonpath="{.data.jenkins-admin-user}" | base64 -d && echo'
       - 'echo -n "PW: " && kubectl get secret -n jenkins jenkins-admin-credentials -o jsonpath="{.data.jenkins-admin-password}" | base64 -d && echo'
+
+  grafana:audit-creds:
+    desc: Grafana security-audit 로그인 ID/고정 비밀번호 조회 (AWS Secrets Manager 기준)
+    cmds:
+      - 'echo "ID: security-audit"'
+      - 'echo -n "PW: " && aws secretsmanager get-secret-value --region ap-northeast-2 --secret-id petflow/grafana/security-audit-password --query SecretString --output text && echo'
