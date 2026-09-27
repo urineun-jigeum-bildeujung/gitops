@@ -79,6 +79,11 @@ tasks:
     cmds:
       - KUBE_CONTEXT='{{.KUBE_CONTEXT | default "petflow-dev"}}' ./scripts/bootstrap-grafana-audit-user.sh
 
+  bootstrap:redis-credentials:
+    desc: Redis 기본/서비스/보안팀 비밀번호를 AWS Secrets Manager에 최초 1회 생성하거나 검증
+    cmds:
+      - ./scripts/bootstrap-redis-credentials.sh
+
   bootstrap:argocd:
     desc: ArgoCD Helm 설치/업그레이드 (이미 있으면 그대로 유지, --install이라 몇 번을 실행해도 안전)
     vars:
