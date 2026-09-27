@@ -1,0 +1,25 @@
+# EKS Access Entry의 petflow-jenkins-port-forward 그룹에만 Jenkins 접속 경로를 연다.
+# Jenkins Job·Credential 조회 권한은 Jenkins 내부 계정에서 별도로 관리한다.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: security-jenkins-port-forward
+  namespace: jenkins
+rules:
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-jenkins-port-forward
+  namespace: jenkins
+subjects:
+  - kind: Group
+    name: petflow-jenkins-port-forward
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: security-jenkins-port-forward
+  apiGroup: rbac.authorization.k8s.io
