@@ -90,6 +90,8 @@ security IAM 사용자는 `jenkins` 네임스페이스의 포트포워딩으로 
 `task bootstrap:jenkins-audit-secret`,
 `task bootstrap:argocd`, `task bootstrap:root-app`으로 실행할 수 있다.
 
+Jenkins Controller는 `images/jenkins-controller/plugins.lock.txt`의 고정 플러그인을 포함한 ECR 이미지를 사용한다. `platform/40-jenkins/application.yaml`은 태그와 digest를 함께 고정하고 `controller.installPlugins=false`로 실행하므로 새 PVC에서도 외부 플러그인 mirror를 조회하지 않는다. 이미지 갱신은 `images/jenkins-controller/build-and-push.sh`로 빌드·CRITICAL 취약점 검사·Push한 뒤 검증된 digest를 Application에 반영한다. 빌드 절차와 롤백 기준은 해당 이미지 디렉터리의 README를 따른다.
+
 커밋 전 검증은 `task validate` (Helm 차트 렌더링 + 전체 YAML 문법 검사).
 
 ## AWS Load Balancer Controller
