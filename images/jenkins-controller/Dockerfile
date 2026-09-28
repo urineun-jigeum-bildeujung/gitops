@@ -12,13 +12,12 @@ LABEL org.opencontainers.image.title="PetFlow Jenkins controller" \
 
 # The pinned upstream image can lag Debian security updates. Keep the Jenkins
 # core/JDK base immutable while applying fixed distro packages at build time.
-# Replace the upstream /usr/local git-lfs binary with Debian's security-tracked
-# package so its embedded Go runtime receives the patched version as well.
+# Remove the upstream git-lfs binary. Controller jobs use ephemeral agents for
+# source checkout, so retaining an unneeded Go binary only expands attack surface.
 USER root
 RUN apt-get update \
     && apt-get upgrade --yes \
     && rm -f /usr/local/bin/git-lfs \
-    && apt-get install --yes --no-install-recommends git-lfs \
     && rm -rf /var/lib/apt/lists/*
 USER jenkins
 
