@@ -84,6 +84,12 @@ tasks:
     cmds:
       - ./scripts/bootstrap-redis-credentials.sh
 
+  redis:audit-creds:
+    desc: Redis 보안팀 계정과 Secrets Manager의 고정 비밀번호 조회
+    cmds:
+      - 'echo "ID: security-audit"'
+      - 'aws secretsmanager get-secret-value --region ap-northeast-2 --secret-id petflow/redis/credentials --query SecretString --output text | python3 -c "import json,sys; print(\"PW: \" + json.load(sys.stdin)[\"audit-password\"])"'
+
   bootstrap:argocd:
     desc: ArgoCD Helm 설치/업그레이드 (이미 있으면 그대로 유지, --install이라 몇 번을 실행해도 안전)
     vars:
