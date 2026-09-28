@@ -18,6 +18,14 @@ spec:
         values: |
           grafana:
             enabled: true
+            # Grafana 사용자/설정을 Pod 재생성 후에도 유지한다.
+            persistence:
+              enabled: true
+              type: sts
+              storageClassName: gp3
+              accessModes:
+                - ReadWriteOnce
+              size: 5Gi
             grafana.ini:
               auth.anonymous:
                 enabled: false

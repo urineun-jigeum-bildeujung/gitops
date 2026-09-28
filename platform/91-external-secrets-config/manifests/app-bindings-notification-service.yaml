@@ -71,3 +71,23 @@ spec:
     - secretKey: INTERNAL_GATEWAY_SECRET
       remoteRef:
         key: petflow/internal/gateway-secret
+---
+# AWS Secrets Manager에는 서비스 계정 JSON 원문을 SecretString으로 저장한다.
+# Git에는 키 내용을 저장하지 않고, Pod에는 읽기 전용 파일로만 마운트한다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: fcm-credentials
+  namespace: notification-service
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: fcm-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: service-account.json
+      remoteRef:
+        key: petflow/notification/fcm-service-account

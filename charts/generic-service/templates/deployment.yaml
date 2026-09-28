@@ -58,7 +58,7 @@ spec:
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
+          {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled .Values.volumeMounts }}
           volumeMounts:
             {{- if .Values.mtls.enabled }}
             - name: mtls-cert
@@ -70,10 +70,13 @@ spec:
               mountPath: /etc/kafka-tls
               readOnly: true
             {{- end }}
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled }}
+      {{- if or .Values.mtls.enabled .Values.kafka.sasl.enabled .Values.volumes }}
       volumes:
         {{- if .Values.mtls.enabled }}
         - name: mtls-cert
@@ -90,6 +93,9 @@ spec:
             items:
               - key: ca.crt
                 path: ca.crt
+        {{- end }}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}
 {{- end }}

@@ -137,6 +137,10 @@ env: []
   # - name: EXAMPLE_ENV
   #   value: "example"
 
+# 서비스별 Secret 파일 등을 컨테이너에 마운트한다.
+volumeMounts: []
+volumes: []
+
 podLabels: {}
 podAnnotations: {}
 
