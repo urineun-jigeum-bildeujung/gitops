@@ -1,0 +1,59 @@
+# recommendation이 CNPG(petflow-db, database 네임스페이스)의 공용 app 계정으로
+# member_db/product_db/review_db/order_db 4개에 읽기 접근한다. 다른 서비스들과
+# 동일하게 host/user/password는 공용이고 dbname만 다르므로, 여기서는 하나의
+# ExternalSecret 안에서 template으로 4개의 완전한 DATABASE_URL을 조립한다
+# (product-service 등과 달리 psycopg2.connect()가 완전한 URL 하나를 받는 구조라서).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-db-reader
+  namespace: recommendation
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: cnpg-db-app
+  namespace: recommendation
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: database
+      server:
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: eso-db-reader
+          namespace: recommendation
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: db-credentials
+  namespace: recommendation
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: cnpg-db-app
+    kind: SecretStore
+  target:
+    name: db-credentials
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        MEMBER_DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@petflow-db-rw.database.svc.cluster.local:5432/member_db"
+        PRODUCT_DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@petflow-db-rw.database.svc.cluster.local:5432/product_db"
+        REVIEW_DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@petflow-db-rw.database.svc.cluster.local:5432/review_db"
+        ORDER_DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@petflow-db-rw.database.svc.cluster.local:5432/order_db"
+  data:
+    - secretKey: username
+      remoteRef:
+        key: petflow-db-app
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: petflow-db-app
+        property: password
