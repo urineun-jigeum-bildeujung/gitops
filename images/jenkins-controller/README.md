@@ -12,12 +12,17 @@ PetFlow Jenkins controller의 core/JDK와 전체 플러그인 버전을 고정�
 - Base image digest: `sha256:c1e4c349365f6d16d88595b2c5f7e8ff39b8ae1d061f62420bac193b4b9616d0`
 - Plugin source: `plugins.lock.txt`
 - Registry: `297165773875.dkr.ecr.ap-northeast-2.amazonaws.com/petflow/jenkins-controller`
-- Verified image: `2.568.3-jdk21-3ceebee8f455@sha256:e0dbaf84e4847cd5c83ae908c08cc632cf8205f65ab76f0ebde704bf9bc84674`
+- Verified image: `2.568.3-jdk21-69893891df2f@sha256:c203ea5e76b203df61ccb7dcf204dd259d61b6950b73f374621b63604e0f8f91`
 - Security baseline: Debian 보안 패키지 적용, 불필요한 controller `git-lfs` 제거, Trivy 0.74.0 CRITICAL 0
 
 `plugins.lock.txt`는 2026-09-28 정상 DEV Jenkins에서 활성화된 플러그인 ID와
-전이 의존성을 포함한 전체 버전 목록이다. 플러그인을 변경할 때는 테스트 Jenkins에서
-JCasC·Job DSL·Kubernetes agent를 검증한 뒤 lock 파일과 image digest를 함께 갱신한다.
+전이 의존성을 포함한 전체 버전 목록이다(2026-09-29에 `lockable-resources` 추가,
+기존 81개는 버전 변경 없음 — jenkins-plugin-cli로 재해석 후 diff 확인). 플러그인을
+변경할 때는 테스트 Jenkins에서 JCasC·Job DSL·Kubernetes agent를 검증한 뒤 lock
+파일과 image digest를 함께 갱신한다. 이번 변경은 별도 테스트 Jenkins 없이 로컬에서
+이미지 빌드·필수 플러그인 파일 존재·Trivy CRITICAL 스캔(0건)까지만 확인했고,
+JCasC/Kubernetes agent 동작은 merge 후 ArgoCD가 실제 DEV Jenkins를 재기동시킬 때
+확인한다.
 
 ## 빌드
 

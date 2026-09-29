@@ -41,6 +41,7 @@ json-path-api:3.0.0-218.vcd4dd1355de2
 kubernetes:4557.ve746270f672f
 kubernetes-client-api:7.3.1-256.v788a_0b_787114
 kubernetes-credentials:207.v492f58828b_ed
+lockable-resources:1560.va_b_cd589f23eb_
 mailer:534.v1b_36f5864073
 matrix-auth:3.3
 metrics:4.2.37-494.v06f9a_939d33a_
