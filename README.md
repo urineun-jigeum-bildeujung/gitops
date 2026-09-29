@@ -94,6 +94,98 @@ Jenkins Controller는 `images/jenkins-controller/plugins.lock.txt`의 고정 플
 
 커밋 전 검증은 `task validate` (Helm 차트 렌더링 + 전체 YAML 문법 검사).
 
+## 기여 방법 (이슈 → 브랜치 → PR)
+
+이 레포는 `blank_issues_enabled: false`라 **이슈 없이는 이슈 자체를 못 만든다** — 반드시
+`.github/ISSUE_TEMPLATE/`의 폼 3종(`bug.yml`, `change_request.yml`, `config.yml`) 중 하나로
+시작한다. 버그 수정은 `bug.yml`, 새 addon/구조 변경/서비스 온보딩은 `change_request.yml`을 쓴다.
+
+1. 이슈 생성 (제목은 템플릿이 `fix: `/`feat: `를 자동으로 붙여줌)
+2. 브랜치 생성 — 강제 규칙은 아니지만 관례상 `fix/<이슈번호>-짧은설명`, `feat/<이슈번호>-짧은설명`
+   (예: `fix/109-jvm-heap-tuning`). 브랜치는 항상 최신 `origin/main`에서 새로 딴다 — 이미
+   머지된 브랜치 위에서 새 브랜치를 파면 add/add 충돌이 남(직접 겪음).
+3. 커밋 → `task validate`로 로컬 검증 → push → PR (`.github/pull_request_template.md` 양식)
+4. PR 본문에 `Closes #<이슈번호>`를 넣어 머지 시 이슈가 자동으로 닫히게 한다.
+5. **Squash merge**로 병합 — `main`의 커밋 히스토리는 항상 깔끔하게 유지.
+
+승인 인원 0명(현재 인프라 담당자 단독 운영), CODEOWNERS 미사용 — 팀원이 합류하면
+`docs/branching-strategy.md`부터 재검토한다.
+
+## 배포 반영 확인 및 트러블슈팅
+
+`main`에 머지되면 ArgoCD가 자동 동기화하지만(`selfHeal: true`), **자동 폴링 주기를 기다리지
+않고 즉시 확인하려면** 관련 Application을 hard refresh 한다.
+
+```bash
+kubectl patch application <app-name> -n argocd --type merge \
+  -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+
+# 동기화 상태/리비전 확인
+kubectl get application <app-name> -n argocd \
+  -o jsonpath='{.status.sync.status} health={.status.health.status} rev={.status.sync.revisions}{"\n"}'
+```
+
+- root Application(`app-platform`, `platform-root`)과 실제 바뀐 리소스를 담당하는 자식
+  Application(예: 서비스면 `dev-<서비스명>`, addon이면 `platform/*`의 Application 이름)을
+  **둘 다** refresh해야 한다 — root만 새로고침하면 자식이 안 따라오는 경우가 있다.
+- **ArgoCD가 관리하는 리소스는 `kubectl apply`/`kubectl patch`로 직접 손대지 않는다** —
+  `selfHeal: true`라 몇 초 안에 git 상태로 되돌려버린다. 라이브로 뭔가 테스트해야 하면
+  `kubectl apply --dry-run=server`(스키마 검증만) 정도만 쓰고, 실제 동작 확인은 반드시
+  커밋 → 머지 → sync 경로로 한다.
+- `.status.sync.revisions`는 소스가 여러 개인 Application(예: 서비스 Application은
+  `charts/generic-service` + `gitops-value` 두 소스)이면 배열로 나온다 — 둘 다 원하는 커밋
+  SHA와 일치하는지 확인한다.
+
+## Argo Rollouts — 블루그린/카나리 승격·재시작
+
+`blueGreen.enabled`(예: auth-service)는 `autoPromotionEnabled: false`라 새 버전이 healthy해도
+**수동 승인 없이는 트래픽이 안 넘어간다.**
+
+```bash
+# 새 ReplicaSet이 준비됐는지 먼저 확인
+kubectl get rollout <name> -n <서비스명> \
+  -o jsonpath='{.status.currentPodHash} updated={.status.updatedReplicas} ready={.status.readyReplicas}{"\n"}'
+
+# 확인됐으면 승격 (kubectl-argo-rollouts 플러그인 필요)
+kubectl argo rollouts promote <name> -n <서비스명>
+
+# 문제가 있어 되돌려야 하면
+kubectl argo rollouts abort <name> -n <서비스명>
+```
+
+`canary.enabled`(예: payment-service)는 `steps`에 `pause: {duration: 60}`처럼 **시간 기반
+pause만 있으면 자동으로 다음 단계로 넘어간다** — 수동 개입 불필요. `pause: {}`(duration 없음)
+스텝이 있으면 그 지점은 blueGreen과 마찬가지로 수동 promote가 필요하다. 현재 `steps` 설정은
+`gitops-value`의 각 서비스 `values.yaml` `canary.steps`에서 확인한다.
+
+Deployment 기반 서비스(canary/blueGreen 둘 다 꺼져 있는 서비스)는 일반 롤링 업데이트라
+별도 승인 없이 자동으로 끝까지 진행된다.
+
+```bash
+# 새 이미지로 강제 재시작(설정 값 변경 없이)
+kubectl rollout restart deployment <name> -n <서비스명>          # Deployment
+kubectl argo rollouts restart <name> -n <서비스명>                # Rollout
+```
+
+## 모니터링 및 알림
+
+- **Grafana**: `https://grafana.leechs.shop` (인터넷 공개, 로그인 필수). Golden Signals/JVM/에러
+  대시보드는 `platform/30-kube-prometheus-stack/manifests`의 ConfigMap을 sidecar가 자동 로드.
+- **Prometheus**: 클러스터 내부 전용, `kubectl port-forward svc/kube-prometheus-stack-prometheus
+  9090:9090 -n observability`로 접근.
+- **Alertmanager**: 골든시그널 알림 8종(`HighErrorRate`, `HighLatencyP99`, `ServiceDown`,
+  `PodCrashLooping`, `PodNotReady`, `HighMemoryUsage`, `HighCPUUsage`,
+  `HikariCPConnectionPoolExhausted`, 정의는 `platform/30-kube-prometheus-stack/manifests/alert-rules.yaml`)만
+  Discord로 라우팅된다(`manifests/alertmanager-config-discord.yaml`, `AlertmanagerConfig` CRD).
+  kube-prometheus-stack이 기본 제공하는 수십 개 알림은 대상이 아니다 — 새 알림 규칙을
+  추가하면 Discord로 보내기 위해 그 `AlertmanagerConfig`의 `matchers` 정규식에도 추가해야 한다.
+- **알림이 울리면**: 메시지에 딸려오는 `runbook_url`을 따라가면 `docs/runbooks/`의 대응
+  문서로 바로 이동한다. 각 런북은 확인 순서, 흔한 원인(실제 겪었던 사고 기준), 완화 방법,
+  에스컬레이션 기준을 담고 있다.
+- **EKS 관리형 컨트롤플레인 관련 알림**(`KubeControllerManagerDown` 등)은 구조적으로 절대
+  해소되지 않아 `defaultRules.rules`에서 꺼져 있다 — 새로 이런 알림이 보이면 EKS가 노출 안
+  하는 컴포넌트인지부터 의심한다.
+
 ## AWS Load Balancer Controller
 
 `platform/10-aws-load-balancer-controller/application.yaml`이 공식 AWS EKS Helm Chart를 직접 참조한다.
