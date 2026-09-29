@@ -105,11 +105,21 @@ JVM 힙/Metaspace 상한을 명시하는 공통 env. 모든 서비스에 무조�
 - Metaspace 실사용량은 132~147Mi인데 상한이 아예 없어서(-1) 계속 커질 수 있는 구조.
 그 결과 order-service는 실제로 512Mi 컨테이너 한도에서 3회 OOMKilled(gitops#108).
 
-MaxRAMPercentage=50.0 → 힙 상한 256Mi(실사용 최대 197Mi 대비 여유 있음).
-MaxMetaspaceSize=200m → Metaspace가 실사용 최대치(147Mi)보다는 크게, 그러나 무제한으로
-안 커지게 상한을 둠. 남은 공간(512Mi - 256Mi - 200Mi = 56Mi)은 CodeHeap/스레드
-스택/네이티브 메모리(실측 40~65Mi 수준) 몫 — 이것만으로는 여유가 빠듯해서, 컨테이너
-memory limit 자체도 512Mi→768Mi로 같이 올린다(gitops-value 레포 별도 PR).
+컨테이너 memory limit은 512Mi→768Mi로 같이 올렸다(gitops-value 레포 별도 PR).
+그 기준으로 힙 상한 384Mi(768Mi의 50%, 실사용 최대 197Mi 대비 여유 있음),
+MaxMetaspaceSize=200m(실사용 최대치 147Mi보다 크게, 무제한으로는 안 커지게).
+
+**-XX:MaxRAMPercentage 대신 -Xmx를 직접 쓴다** — 처음엔 MaxRAMPercentage=50.0으로
+했었는데, 배포 후 실측해보니 안 먹히고 있었다(gitops#110). 컨테이너 이미지
+ENTRYPOINT 자체에 -XX:MaxRAMPercentage=75.0이 하드코딩되어 있어서, JDK_JAVA_OPTIONS로
+넣은 값이 커맨드라인 앞에 붙고 이미지 쪽 값이 뒤에 오는 구조라 JVM이 "나중에 나온
+값"인 75.0을 채택해버렸다(같은 -XX 플래그 중복 시 나중 값이 이김). -Xmx는 이미지가
+쓰는 -XX:MaxRAMPercentage와 다른 플래그라 "나중 값이 이긴다" 경쟁 자체가 없고,
+JVM 에르고노믹스 상 -Xmx가 명시되면 MaxRAMPercentage 기반 계산 자체가 아예
+스킵되므로 순서 무관하게 확실히 적용된다(컨테이너 안에서
+`java -Xmx256m -XX:MaxRAMPercentage=75.0 -XX:+PrintFlagsFinal`로 직접 검증,
+MaxHeapSize={command line} 소스로 -Xmx 값이 이기는 것 확인). Metaspace는 이미지
+쪽에 경쟁하는 플래그가 없어서 애초부터 정상 적용되고 있었음.
 
 기존 externalEgressEnv가 JAVA_TOOL_OPTIONS를 프록시 설정용으로 이미 쓰고 있어서(java
 런타임), 같은 이름의 env를 여기서 또 선언하면 K8s가 나중 값으로 덮어써서 프록시 설정이
@@ -124,7 +134,7 @@ mtls.enabled로 게이팅한다 — 위 실측은 mTLS 활성화된 7개 Java(Sp
 {{- define "generic-service.jvmMemoryEnv" -}}
 {{- if .Values.mtls.enabled }}
 - name: JDK_JAVA_OPTIONS
-  value: "-XX:MaxRAMPercentage=50.0 -XX:MaxMetaspaceSize=200m"
+  value: "-Xmx384m -XX:MaxMetaspaceSize=200m"
 {{- end }}
 {{- end -}}
 
