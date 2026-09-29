@@ -44,6 +44,14 @@ Map<String,...> 동적 키라, 환경변수(SystemEnvironmentPropertySource)가 
   value: {{ .Values.service.targetPort | quote }}
 - name: SERVER_SSL_ENABLED
   value: "true"
+# management.server.ssl이 명시적으로 안 꺼져 있으면 server.ssl.enabled=true를
+# 그대로 물려받아서, 포트를 8080으로 분리해놨어도 관리 포트(actuator/prometheus
+# 포함)까지 TLS를 요구해버린다 — Prometheus는 평문 HTTP로 스크랩하는데 앱이
+# "This combination of host and port requires TLS." 400을 계속 뱉어서 모든
+# ServiceDown/TargetDown 알림이 실제로는 이게 원인이었다(2026-09-29 실제
+# 파드에 port-forward로 재현·확인). 명시적으로 false를 줘서 관리 포트만 평문 유지.
+- name: MANAGEMENT_SERVER_SSL_ENABLED
+  value: "false"
 - name: SERVER_SSL_CLIENT_AUTH
   value: "need"
 - name: SERVER_SSL_BUNDLE
