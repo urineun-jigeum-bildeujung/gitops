@@ -14,13 +14,16 @@
    - `CrashLoopBackOff` → `pod-crash-looping.md` 런북으로
    - `Pending` → 노드 리소스 부족 가능성, `kubectl describe pod`로 Events 확인
    - `Running`인데 up=0 → 2번으로
-2. **Running인데 스크레이프가 안 되는 경우** — 앱은 떠 있는데 `/actuator/prometheus`가 응답 안 하는 상황
+2. **Running인데 스크레이프가 안 되는 경우** — 앱은 떠 있는데 `/actuator/prometheus`가 응답 안 하는 상황. `deploy/<서비스명>`은 auth-service/payment-service처럼 Argo Rollout(blueGreen/canary)을 쓰는 서비스에선 못 찾으니, 라벨 셀렉터로 파드를 직접 지정한다.
    ```bash
-   kubectl exec -n <서비스명> deploy/<서비스명> -- curl -sf localhost:8080/actuator/prometheus | head -5
+   POD=$(kubectl get pod -n <서비스명> -l app.kubernetes.io/name=generic-service -o jsonpath='{.items[0].metadata.name}')
+   kubectl exec -n <서비스명> "$POD" -- curl -sv localhost:8080/actuator/prometheus 2>&1 | tail -20
    ```
-   - 실패하면 앱 내부 데드락/행(hang) 의심 → 로그 확인, 필요시 파드 재시작
+   - **응답이 `HTTP 400`이고 본문이 `"This combination of host and port requires TLS."`면 mTLS 관리포트 SSL 상속 문제다(2026-09-29 auth-service 등 다수 서비스에서 실제 재현)** — mTLS 활성화 서비스는 `management.server.ssl.enabled`를 명시적으로 안 꺼두면 `server.ssl.enabled=true`(메인 8443 포트용)를 그대로 물려받아서, Prometheus가 평문으로 스크레이프하는 8080 관리 포트까지 TLS를 요구해버림. `charts/generic-service`의 `generic-service.mtlsEnv`(`_helpers.tpl`)에 `MANAGEMENT_SERVER_SSL_ENABLED: "false"`가 있는지 확인 — 이미 있는데도 재현되면 차트가 아니라 다른 원인이니 계속 조사. (gitops#106에서 최초 발견/수정)
+   - 그 외의 실패면 앱 내부 데드락/행(hang) 의심 → 로그 확인, 필요시 파드 재시작
    ```bash
-   kubectl rollout restart deployment <서비스명> -n <서비스명>
+   kubectl rollout restart deployment <서비스명> -n <서비스명>   # Deployment인 경우
+   kubectl argo rollouts restart generic-service -n <서비스명>  # Rollout(blueGreen/canary)인 경우
    ```
 3. **ServiceMonitor/네트워크 문제인지 확인** (앱은 정상인데 Prometheus만 못 붙는 경우)
    ```bash
