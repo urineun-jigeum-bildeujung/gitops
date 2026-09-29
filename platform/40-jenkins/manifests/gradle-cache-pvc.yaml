@@ -1,0 +1,23 @@
+# sever-ci 빌드 에이전트 Pod의 gradle 컨테이너가 쓰는 Gradle 캐시(의존성 다운로드 +
+# 빌드/테스트 결과) 영구 저장용 PVC. 지금은 agent Pod 자체가 매 빌드마다 새로 뜨고
+# workspace-volume이 emptyDir이라, org.gradle.caching=true를 켜놔도 캐시가 매번
+# 텅 빈 상태로 시작해서 8개 서비스를 매번 처음부터 다시 컴파일/테스트했다(#174).
+#
+# RWO로도 안전한 이유: sever/Jenkinsfile의 lock(resource: 'ci-build')가 레포 전체
+# (web/ai 포함) CI 빌드를 한 번에 하나만 돌게 직렬화해놔서, 이 PVC를 노리는 Pod도
+# 항상 하나뿐이다 — 여러 Pod이 동시에 ReadWriteOnce 볼륨을 다투는 상황 자체가 없다.
+#
+# 5Gi로 잡은 근거: Jenkins 컨트롤러 자체 PVC가 8Gi로 충분히 도는 걸 참고 — Gradle
+# 의존성 캐시 + 빌드 캐시 합쳐도 서비스 8개 규모에서는 수백MB~1-2GB대라 5Gi면 여유 있다.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sever-ci-gradle-cache
+  namespace: jenkins
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 5Gi
