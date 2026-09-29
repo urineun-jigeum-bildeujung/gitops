@@ -15,6 +15,7 @@ replicaCount: 1
 # 배치 전용이면 service.enabled, metrics.enabled도 같이 false로 둔다.
 deployment:
   enabled: true
+  strategy: {}
 
 serviceAccount:
   create: true
