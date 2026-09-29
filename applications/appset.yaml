@@ -55,9 +55,26 @@ spec:
         # CreateNamespace=true는 그래도 안전망으로 유지(여기서 이름이 틀리면 즉시 알아챌 수 있게
         # 05-namespaces와 반드시 동일한 이름을 써야 함).
         namespace: "{{.path.basename}}"
+      # HPA가 Deployment/Rollout의 spec.replicas를 직접 바꾸는데, selfHeal이 켜져 있으면
+      # ArgoCD가 이걸 git의 replicaCount와 다르다고 판단해 되돌려버려 HPA와 계속 충돌한다.
+      # ignoreDifferences로 그 필드를 아예 관리 대상에서 빼고(RespectIgnoreDifferences=true로
+      # sync 시점에도 덮어쓰지 않게 함), replicas의 실제 소유권을 HPA(없으면 마지막 kubectl
+      # scale 값)에 넘긴다. 부작용: HPA 없는 서비스도 같이 적용되므로, 그런 서비스는 이제
+      # values.yaml의 replicaCount를 바꿔도 GitOps sync로 반영되지 않는다 — kubectl scale로
+      # 직접 하거나 그때만 일시적으로 이 설정을 빼야 한다.
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        - group: argoproj.io
+          kind: Rollout
+          jsonPointers:
+            - /spec/replicas
       syncPolicy:
         automated:
           prune: true
           selfHeal: true
         syncOptions:
           - CreateNamespace=true
+          - RespectIgnoreDifferences=true
