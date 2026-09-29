@@ -13,6 +13,15 @@ spec:
   selector:
     matchLabels:
       {{- include "generic-service.selectorLabels" . | nindent 6 }}
+    # blueGreen 활성화 서비스는 activeService/preview Service가 selectorLabels를 공유해서
+    # 이 라벨만으로는 두 Service를 구분 못 하고 둘 다 스크랩 대상이 됨 — preview가 activeService와
+    # 같은 파드를 가리키는 상태(promote 후 변경 없음)일 때 같은 파드를 2번 긁어서 메트릭이
+    # 전부 2배로 찍히는 버그로 이어짐(gitops#107). preview Service에만 붙는
+    # app.kubernetes.io/component=preview 라벨로 명시적으로 제외한다.
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: ["preview"]
   endpoints:
     - port: http
       path: {{ .Values.metrics.path }}

@@ -42,6 +42,7 @@ spec:
             {{- include "generic-service.externalEgressEnv" . | nindent 12 }}
             {{- include "generic-service.mtlsEnv" . | nindent 12 }}
             {{- include "generic-service.kafkaSaslEnv" . | nindent 12 }}
+            {{- include "generic-service.jvmMemoryEnv" . | nindent 12 }}
           {{- with .Values.startupProbe }}
           startupProbe:
             {{- toYaml . | nindent 12 }}
