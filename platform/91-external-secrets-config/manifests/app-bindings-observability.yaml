@@ -1,0 +1,26 @@
+# Alertmanager -> Discord 인프라 채널 알림용 웹훅 URL.
+# AWS Secrets Manager(petflow/observability/discord-webhook-infra)의 값을 observability
+# 네임스페이스의 K8s Secret으로 가져온다. gateway-secret/oauth2-credentials와 동일한
+# provider.aws/ClusterSecretStore(aws-secrets-manager) 패턴.
+#
+# 2026-09-29 기준: "클라우드 인프라" 팀 채널 웹훅 권한을 아직 못 받아서 값 자체는
+# 사용자 개인 디스코드 임시 웹훅이다. 팀 채널 권한 받으면 AWS Secrets Manager 값만
+# 교체하면 되고 이 파일/platform/30-kube-prometheus-stack은 다시 건드릴 필요 없다
+# (ExternalSecret refreshInterval 1h + Alertmanager가 파일 변경 자동 감지).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-discord-webhook
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: alertmanager-discord-webhook
+    creationPolicy: Owner
+  data:
+    - secretKey: webhook-url
+      remoteRef:
+        key: petflow/observability/discord-webhook-infra
