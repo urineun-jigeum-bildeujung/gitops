@@ -2,7 +2,7 @@
 # 이 chart는 Kubernetes plugin이 기본 내장되어 있어서, 빌드마다 동적으로 agent Pod을
 # 띄우는 방식이 자연스럽다 (sever/Jenkinsfile의 agent 블록도 이에 맞춰 작성 예정).
 #
-# Jenkins core 2.568.3/JDK 21과 검증된 플러그인 81개는 petflow/jenkins-controller
+# Jenkins core 2.568.3/JDK 21과 검증된 플러그인 82개는 petflow/jenkins-controller
 # 이미지에 빌드 시점에 포함한다. 배포 시 ECR digest를 고정하고 installPlugins=false로
 # 설정하므로 새 PVC에서도 외부 플러그인 mirror에 의존하지 않는다. 이미지 소스와
 # lock 파일은 images/jenkins-controller/에서 관리한다.
@@ -33,7 +33,7 @@ spec:
             image:
               registry: "297165773875.dkr.ecr.ap-northeast-2.amazonaws.com"
               repository: "petflow/jenkins-controller"
-              tag: "2.568.3-jdk21-3ceebee8f455@sha256:e0dbaf84e4847cd5c83ae908c08cc632cf8205f65ab76f0ebde704bf9bc84674"
+              tag: "2.568.3-jdk21-69893891df2f@sha256:c203ea5e76b203df61ccb7dcf204dd259d61b6950b73f374621b63604e0f8f91"
               pullPolicy: IfNotPresent
             installPlugins: false
             resources: {}
