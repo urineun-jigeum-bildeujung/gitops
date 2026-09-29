@@ -82,35 +82,24 @@ spec:
                     filterByTraceID: true
           alertmanager:
             alertmanagerSpec:
-              # AWS Secrets Manager(petflow/observability/discord-webhook-infra)의 값을
-              # ExternalSecret(platform/91-external-secrets-config/manifests/
-              # app-bindings-observability.yaml)이 이 이름의 K8s Secret으로 만들어두면,
-              # Prometheus Operator가 /etc/alertmanager/secrets/<시크릿이름>/ 아래에
-              # 그대로 마운트해준다. 웹훅 URL 자체는 git에 절대 평문으로 올라가지 않는다.
-              secrets:
-                - alertmanager-discord-webhook
+              # AlertmanagerConfig CRD(platform/30-kube-prometheus-stack/manifests/
+              # alertmanager-config-discord.yaml)가 자동으로 병합되게 함 — selector를
+              # 비워두면(matchLabels 없음) 네임스페이스/라벨 상관없이 전부 매칭.
+              alertmanagerConfigSelector: {}
+              alertmanagerConfigNamespaceSelector: {}
+              # 기본 전략(OnNamespace)은 AlertmanagerConfig의 route에 "그 오브젝트가
+              # 있는 네임스페이스"라는 matcher를 자동으로 끼워 넣는다. 우리 AlertmanagerConfig는
+              # observability에 두지만 실제 알림(PrometheusRule)들은 서비스별 네임스페이스에서
+              # 오므로, 그 자동 matcher가 붙으면 알림이 전부 안 걸러지게 된다. None으로 꺼서
+              # matcher를 AlertmanagerConfig 쪽에서 직접(또는 지금처럼 아예 없이) 관리한다.
+              alertmanagerConfigMatcherStrategy:
+                type: None
             config:
-              route:
-                receiver: "discord-infra"
-                group_by: ["alertname", "namespace"]
-                group_wait: 30s
-                group_interval: 5m
-                repeat_interval: 4h
-                # 팀별 요청이 들어오면 여기 routes 밑에 team/namespace 라벨 매칭 조건과
-                # 전용 receiver를 추가하면 된다. 지금은 전부 인프라 채널 하나로만 받는다.
-                routes: []
+              # receivers만 최소로 유지 — 실제 라우팅(디스코드 등)은 AlertmanagerConfig
+              # CRD가 담당한다. 그 CRD가 매칭 안 하는 알림은 이 기본 route(receiver: "null")로
+              # 떨어져 조용히 무시된다.
               receivers:
-                # 외부 알림 없이 기본 route가 참조할 수 있는 대기 Receiver(특정 알림만
-                # 조용히 묵음 처리하고 싶을 때 쓸 자리로 남겨둠).
                 - name: "null"
-                - name: "discord-infra"
-                  discord_configs:
-                    # 2026-09-29: "클라우드 인프라" 팀 채널 웹훅 만들 권한을 아직 못 받아서,
-                    # 사용자 개인 디스코드로 임시 연결해 알림 흐름 자체만 먼저 검증한다.
-                    # 팀 채널 웹훅 권한 받으면 AWS Secrets Manager 값만 교체하면 되고
-                    # gitops 코드는 다시 건드릴 필요 없다(gateway-secret과 동일한 패턴).
-                    - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord-webhook/webhook-url
-                      send_resolved: true
     # Golden Signals/JVM/에러 대시보드(ConfigMap, grafana sidecar가 자동 로드)와
     # 알림 규칙(PrometheusRule)은 차트 values로 넣기엔 너무 커서 별도 소스로 분리.
     # Jenkins Application(platform/40-jenkins)의 kaniko ServiceAccount와 같은 패턴.

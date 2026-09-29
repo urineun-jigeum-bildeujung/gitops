@@ -1,0 +1,40 @@
+# Discord 인프라 채널로 알림을 보내는 라우팅 — AlertmanagerConfig CRD를 씀.
+#
+# 처음엔 alertmanager.config(raw string, application.yaml)에 discord_configs를
+# 직접 넣고 webhook_url_file로 시크릿 파일을 참조하려 했는데, 이 kube-prometheus-stack
+# 버전(90.0.0)에 딸려오는 Prometheus Operator가 그 raw config를 자체 파싱할 때 쓰는
+# 내부 타입이 webhook_url_file을 아직 모름
+# ("field webhook_url_file not found in type alertmanager.discordConfig") — Alertmanager
+# 바이너리(0.34.0) 자체는 지원해도 Operator가 먼저 막아버림. 그래서 CRD 방식으로 바꿈:
+# AlertmanagerConfig의 discordConfigs[].apiURL은 SecretKeySelector라 시크릿을 네이티브로
+# 참조하고, 이건 Operator가 정식으로 지원하는 경로라 문제없다.
+#
+# alertmanagerConfigMatcherStrategy를 None으로 꺼놔서(application.yaml 참고), 이
+# route는 이 오브젝트가 있는 네임스페이스(observability)로 자동 제한되지 않고 전체
+# 알림에 다 적용된다 — 지금은 팀 구분 없이 전부 인프라 채널로 보내는 게 목적이라 의도한 동작.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: discord-infra
+  namespace: observability
+spec:
+  route:
+    receiver: discord-infra
+    groupBy: ["alertname", "namespace"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    # 팀별 채널 요청이 오면 여기 routes 밑에 matchers(예: namespace)로 특정 알림만
+    # 골라내는 하위 route + 전용 receiver를 추가하면 된다. 지금은 전부 여기로 받는다.
+    routes: []
+  receivers:
+    - name: discord-infra
+      discordConfigs:
+        # 2026-09-29: "클라우드 인프라" 팀 채널 웹훅을 만들 권한을 아직 못 받아서,
+        # 사용자 개인 디스코드로 임시 연결해 알림 흐름 자체만 먼저 검증한다. 팀 채널
+        # 권한 받으면 AWS Secrets Manager 값(petflow/observability/discord-webhook-infra)만
+        # 교체하면 되고 이 파일은 다시 건드릴 필요 없다.
+        - apiURL:
+            name: alertmanager-discord-webhook
+            key: webhook-url
+          sendResolved: true
