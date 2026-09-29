@@ -30,6 +30,13 @@ metadata:
   name: {{ include "generic-service.name" . }}-preview
   labels:
     {{- include "generic-service.labels" . | nindent 4 }}
+    # activeService와 selectorLabels가 동일해서 servicemonitor.yaml이 라벨로만 골라내면
+    # 이 preview Service까지 같이 매칭된다. rollout이 promote 상태(변경 없음)일 땐 이
+    # Service의 Endpoints가 activeService와 똑같은 파드를 가리키므로, 그대로 두면
+    # Prometheus가 같은 파드를 2번 스크랩해서 모든 메트릭이 정확히 2배로 찍힌다
+    # (2026-09-29 실제로 auth-service에서 jvm_memory_* 전체가 2배로 나오는 걸로 발견).
+    # 이 라벨로 ServiceMonitor의 matchExpressions에서 명시적으로 제외한다.
+    app.kubernetes.io/component: preview
 spec:
   type: {{ .Values.service.type }}
   ports:
