@@ -24,6 +24,17 @@ spec:
     groupWait: 30s
     groupInterval: 5m
     repeatInterval: 4h
+    # matcherStrategy가 None이라 이 route가 전체 알림(kube-prometheus-stack 기본 제공
+    # 알림 수십 개 포함)에 다 걸린다. 2026-09-29에 실제로 그 상태로 한 번 반영했다가
+    # 우리가 직접 만든 것도 아니고 이 dev 클러스터엔 안 맞는 알림들(예: EKS 관리형
+    # 컨트롤플레인이라 절대 안 꺼지는 kube-scheduler/controller-manager 알림 등)까지
+    # 전부 쏟아져서, 우리가 실제로 작성한 골든시그널 알림 8개(petflow-golden-signals,
+    # alert-rules.yaml)로만 명시적으로 한정한다. 새 알림 규칙을 추가하면 여기 정규식에도
+    # 같이 추가해야 디스코드로 나간다.
+    matchers:
+      - name: alertname
+        matchType: "=~"
+        value: "HighErrorRate|HighLatencyP99|ServiceDown|PodCrashLooping|PodNotReady|HighMemoryUsage|HighCPUUsage|HikariCPConnectionPoolExhausted"
     # 팀별 채널 요청이 오면 여기 routes 밑에 matchers(예: namespace)로 특정 알림만
     # 골라내는 하위 route + 전용 receiver를 추가하면 된다. 지금은 전부 여기로 받는다.
     routes: []
@@ -38,3 +49,17 @@ spec:
             name: alertmanager-discord-webhook
             key: webhook-url
           sendResolved: true
+          # Alertmanager 기본 템플릿은 영어에 KST 시각 표기가 없어서 커스텀함.
+          # Go 표준 템플릿엔 타임존 변환 함수가 없어서, StartsAt/EndsAt(UTC)에
+          # 9시간(32400000000000ns=time.Duration)을 직접 더해 KST로 맞춘다.
+          title: '{{ if eq .Status "firing" }}🔴 알림 발생{{ else }}✅ 알림 해소{{ end }} · {{ .CommonLabels.namespace }} · {{ .CommonLabels.alertname }}'
+          message: |-
+            {{ range .Alerts }}
+            **상태**: {{ if eq .Status "firing" }}🔴 발생 중{{ else }}✅ 해소됨{{ end }}
+            **요약**: {{ .Annotations.summary }}
+            **설명**: {{ .Annotations.description }}
+            **발생 시각(KST)**: {{ (.StartsAt.Add 32400000000000).Format "2006-01-02 15:04:05" }}
+            {{ if eq .Status "resolved" }}**해소 시각(KST)**: {{ (.EndsAt.Add 32400000000000).Format "2006-01-02 15:04:05" }}
+            {{ end -}}
+            {{ if .Annotations.runbook_url }}**대응 방법**: {{ .Annotations.runbook_url }}{{ end }}
+            {{ end }}

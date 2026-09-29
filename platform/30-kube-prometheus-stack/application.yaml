@@ -16,6 +16,15 @@ spec:
       helm:
         releaseName: kube-prometheus-stack
         values: |
+          defaultRules:
+            rules:
+              # EKS는 컨트롤플레인을 관리형으로 숨겨서 kube-controller-manager/kube-scheduler를
+              # Prometheus가 긁어갈 대상 자체가 없다. 이 두 규칙그룹의 알림은
+              # absent(up{job="..."})라 절대 해소되지 않고 영원히 계속 울린다
+              # (2026-09-29 실제로 계속 firing 상태인 것 확인) — EKS에서는 의미 없는
+              # 알림이라 통째로 끈다.
+              kubeControllerManager: false
+              kubeSchedulerAlerting: false
           grafana:
             enabled: true
             # Grafana 사용자/설정을 Pod 재생성 후에도 유지한다.
