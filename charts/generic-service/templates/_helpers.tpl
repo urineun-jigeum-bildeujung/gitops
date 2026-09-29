@@ -94,6 +94,40 @@ KafkaProducerConfig/KafkaConsumerConfig(sever 레포) 코드 몫 - 여기선 배
 {{- end }}
 {{- end -}}
 
+{{/*
+JVM 힙/Metaspace 상한을 명시하는 공통 env. 모든 서비스에 무조건 주입한다(mTLS/egress처럼
+조건부 아님).
+
+기존엔 베이스 이미지 기본값(-XX:MaxRAMPercentage=75.0, Metaspace 무제한)에 그대로 맡겨져
+있었는데, 실측(2026-09-29, Prometheus jvm_memory_used/max_bytes) 결과 7개 서비스 전부:
+- 힙 실사용량은 76~197Mi인데 상한(75%)은 371~384Mi로 잡혀 있어서, 안 쓰는 힙 공간이
+  200Mi 넘게 낭비되고 있었음 — 이 공간을 Metaspace/스레드/네이티브 메모리가 못 씀.
+- Metaspace 실사용량은 132~147Mi인데 상한이 아예 없어서(-1) 계속 커질 수 있는 구조.
+그 결과 order-service는 실제로 512Mi 컨테이너 한도에서 3회 OOMKilled(gitops#108).
+
+MaxRAMPercentage=50.0 → 힙 상한 256Mi(실사용 최대 197Mi 대비 여유 있음).
+MaxMetaspaceSize=200m → Metaspace가 실사용 최대치(147Mi)보다는 크게, 그러나 무제한으로
+안 커지게 상한을 둠. 남은 공간(512Mi - 256Mi - 200Mi = 56Mi)은 CodeHeap/스레드
+스택/네이티브 메모리(실측 40~65Mi 수준) 몫 — 이것만으로는 여유가 빠듯해서, 컨테이너
+memory limit 자체도 512Mi→768Mi로 같이 올린다(gitops-value 레포 별도 PR).
+
+기존 externalEgressEnv가 JAVA_TOOL_OPTIONS를 프록시 설정용으로 이미 쓰고 있어서(java
+런타임), 같은 이름의 env를 여기서 또 선언하면 K8s가 나중 값으로 덮어써서 프록시 설정이
+날아간다. JDK_JAVA_OPTIONS는 JDK 9+에서 지원하는 별도 환경변수로, JAVA_TOOL_OPTIONS와
+독립적으로 같이 적용되므로 충돌 없이 추가할 수 있다.
+
+mtls.enabled로 게이팅한다 — 위 실측은 mTLS 활성화된 7개 Java(Spring Boot) 서비스만
+대상으로 했고, 이 값이 web(node)/nutrition/recommendation처럼 실측 안 한 다른 런타임
+서비스한테도 맞는지는 확인 안 됐음. 이 서비스들은 mtls.enabled=false라서 자동으로
+제외된다.
+*/}}
+{{- define "generic-service.jvmMemoryEnv" -}}
+{{- if .Values.mtls.enabled }}
+- name: JDK_JAVA_OPTIONS
+  value: "-XX:MaxRAMPercentage=50.0 -XX:MaxMetaspaceSize=200m"
+{{- end }}
+{{- end -}}
+
 {{- define "generic-service.externalEgressEnv" -}}
 {{- if .Values.externalEgress.enabled }}
 {{- $proxyHost := printf "%s-egress.%s.svc.cluster.local" (include "generic-service.name" .) .Release.Namespace }}
