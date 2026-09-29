@@ -39,15 +39,6 @@ spec:
         argocd.argoproj.io/sync-wave: "10"
     spec:
       project: services
-      ignoreDifferences:
-        - group: apps
-          kind: Deployment
-          jsonPointers:
-            - /spec/replicas
-        - group: argoproj.io
-          kind: Rollout
-          jsonPointers:
-            - /spec/replicas
       sources:
         - repoURL: https://github.com/urineun-jigeum-bildeujung/gitops.git
           targetRevision: main
