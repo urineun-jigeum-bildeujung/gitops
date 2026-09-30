@@ -20,8 +20,23 @@ metadata:
 spec:
   route:
     receiver: discord-infra
-    groupBy: ["alertname", "namespace"]
-    groupWait: 30s
+    # groupBy에서 namespace를 뺐다(2026-09-30, 원래는 ["alertname", "namespace"]였음) —
+    # 실측(Alertmanager alertmanager_notifications_failed_total 메트릭)으로 디스코드
+    # 웹훅이 85번 시도 중 6번 429(rate limit)로 실패한 걸 발견했는데, 원인이 ServiceDown
+    # 같은 알림이 여러 서비스에서 동시에 뜨면 namespace별로 전부 따로따로 별개 디스코드
+    # 메시지를 쏘는 구조였기 때문. Alertmanager는 429를 재시도 안 하는 에러로 취급해서
+    # (repeatInterval이 4h라) 실패하면 그 알림은 사실상 오랫동안 다시 안 감.
+    # alertname만으로 묶으면 "ServiceDown 3건"이 메시지 1개로 합쳐져서 동시 요청 수 자체가
+    # 줄어든다 — 메시지 템플릿(message, 아래)이 이미 {{ range .Alerts }}로 알림 여러 개를
+    # 한 메시지 안에 나열하게 돼 있어서 정보 손실 없음. 대신 title의
+    # {{ .CommonLabels.namespace }}는 그룹 안 알림들의 namespace가 서로 다르면 빈 값이
+    # 되므로(CommonLabels는 "그룹 내 전부 동일한 라벨"만 남음), title 템플릿도 그 경우엔
+    # namespace 부분을 아예 생략하도록 조건문으로 바꿨다(아래 discordConfigs.title 참고).
+    groupBy: ["alertname"]
+    # 같은 이유로 groupWait도 30s→1m으로 늘려서, 짧은 시간 안에 여러 알림이 동시에 뜰 때
+    # 더 많이 한 메시지로 묶일 시간을 줌(첫 전송까지 기다리는 시간이 길어질 뿐, 알림 자체가
+    # 늦게 뜨는 건 아님 — 알림 발생 자체는 alert-rules.yaml의 for: 조건으로 이미 결정됨).
+    groupWait: 1m
     groupInterval: 5m
     repeatInterval: 4h
     # matcherStrategy가 None이라 이 route가 전체 알림(kube-prometheus-stack 기본 제공
@@ -58,7 +73,13 @@ spec:
           # Alertmanager 기본 템플릿은 영어에 KST 시각 표기가 없어서 커스텀함.
           # Go 표준 템플릿엔 타임존 변환 함수가 없어서, StartsAt/EndsAt(UTC)에
           # 9시간(32400000000000ns=time.Duration)을 직접 더해 KST로 맞춘다.
-          title: '{{ if eq .Status "firing" }}🔴 알림 발생{{ else }}✅ 알림 해소{{ end }} · {{ .CommonLabels.namespace }} · {{ .CommonLabels.alertname }}'
+          #
+          # groupBy에서 namespace를 뺐기 때문에(위 route 주석 참고), 같은 알림이 여러
+          # namespace에서 동시에 뜨면 .CommonLabels.namespace가 빈 값이 된다(그룹 내
+          # 알림들의 namespace가 서로 달라서 "공통 라벨"이 아니게 됨) — 그 경우 제목에서
+          # namespace 부분을 통째로 생략한다. namespace별 상세 내용은 message 본문에서
+          # 알림별로 다 보여주므로 정보 손실은 없음.
+          title: '{{ if eq .Status "firing" }}🔴 알림 발생{{ else }}✅ 알림 해소{{ end }}{{ if .CommonLabels.namespace }} · {{ .CommonLabels.namespace }}{{ end }} · {{ .CommonLabels.alertname }}'
           message: |-
             {{ range .Alerts }}
             **상태**: {{ if eq .Status "firing" }}🔴 발생 중{{ else }}✅ 해소됨{{ end }}
