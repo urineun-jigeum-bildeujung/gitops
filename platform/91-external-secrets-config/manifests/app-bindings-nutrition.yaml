@@ -1,0 +1,73 @@
+# nutrition이 CNPG(petflow-db, database 네임스페이스)의 공용 app 계정으로
+# member_db/product_db를 SELECT-only runtime source로 사용한다.
+# 실제 credential 값은 Git에 저장하지 않고 petflow-db-app Secret에서 URL을 조립한다.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-db-reader
+  namespace: nutrition
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: cnpg-db-app
+  namespace: nutrition
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: database
+      server:
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: eso-db-reader
+          namespace: nutrition
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: db-credentials
+  namespace: nutrition
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: cnpg-db-app
+    kind: SecretStore
+  target:
+    name: db-credentials
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        MEMBER_DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@petflow-db-rw.database.svc.cluster.local:5432/member_db"
+        PRODUCT_DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@petflow-db-rw.database.svc.cluster.local:5432/product_db"
+  data:
+    - secretKey: username
+      remoteRef:
+        key: petflow-db-app
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: petflow-db-app
+        property: password
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-secret
+  namespace: nutrition
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: gateway-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: INTERNAL_GATEWAY_SECRET
+      remoteRef:
+        key: petflow/internal/gateway-secret
