@@ -49,16 +49,22 @@ spec:
     #
     # FrontendJsErrorSpike/FrontendOrderApiFailureSustained(2026-09-30 추가,
     # platform/30-loki/manifests/frontend-alert-rules.yaml)는 프론트엔드팀 전용
-    # 알림이라 원래는 별도 채널로 가야 맞는데, 아직 그 팀 Discord 웹훅이 없어서
-    # 일단 여기(인프라 채널)로 임시로 같이 받는다. 프론트엔드팀 웹훅이 생기면
-    # 이 두 알림만 별도 receiver(routes 하위)로 분리해야 함.
+    # 알림이라 원래는 별도 채널로 가야 맞았는데, 웹훅이 없어서 한동안 여기(인프라
+    # 채널)로 임시로 같이 받았다. 2026-09-30에 프론트엔드팀 웹훅 권한을 받아서
+    # 아래 routes 하위의 discord-frontend receiver로 분리했다 — 이 매처(discord-infra)
+    # 에서는 두 알림 이름을 뺐다.
     matchers:
       - name: alertname
         matchType: "=~"
-        value: "HighErrorRate|HighLatencyP99|ServiceDown|PodCrashLooping|PodNotReady|HighMemoryUsage|HighCPUUsage|HikariCPConnectionPoolExhausted|FrontendJsErrorSpike|FrontendOrderApiFailureSustained"
+        value: "HighErrorRate|HighLatencyP99|ServiceDown|PodCrashLooping|PodNotReady|HighMemoryUsage|HighCPUUsage|HikariCPConnectionPoolExhausted"
     # 팀별 채널 요청이 오면 여기 routes 밑에 matchers(예: namespace)로 특정 알림만
-    # 골라내는 하위 route + 전용 receiver를 추가하면 된다. 지금은 전부 여기로 받는다.
-    routes: []
+    # 골라내는 하위 route + 전용 receiver를 추가하면 된다.
+    routes:
+      - receiver: discord-frontend
+        matchers:
+          - name: alertname
+            matchType: "=~"
+            value: "FrontendJsErrorSpike|FrontendOrderApiFailureSustained"
   receivers:
     - name: discord-infra
       discordConfigs:
@@ -79,6 +85,26 @@ spec:
           # 알림들의 namespace가 서로 달라서 "공통 라벨"이 아니게 됨) — 그 경우 제목에서
           # namespace 부분을 통째로 생략한다. namespace별 상세 내용은 message 본문에서
           # 알림별로 다 보여주므로 정보 손실은 없음.
+          title: '{{ if eq .Status "firing" }}🔴 알림 발생{{ else }}✅ 알림 해소{{ end }}{{ if .CommonLabels.namespace }} · {{ .CommonLabels.namespace }}{{ end }} · {{ .CommonLabels.alertname }}'
+          message: |-
+            {{ range .Alerts }}
+            **상태**: {{ if eq .Status "firing" }}🔴 발생 중{{ else }}✅ 해소됨{{ end }}
+            **요약**: {{ .Annotations.summary }}
+            **설명**: {{ .Annotations.description }}
+            **발생 시각(KST)**: {{ (.StartsAt.Add 32400000000000).Format "2006-01-02 15:04:05" }}
+            {{ if eq .Status "resolved" }}**해소 시각(KST)**: {{ (.EndsAt.Add 32400000000000).Format "2006-01-02 15:04:05" }}
+            {{ end -}}
+            {{ if .Annotations.runbook_url }}**대응 방법**: {{ .Annotations.runbook_url }}{{ end }}
+            {{ end }}
+    # 2026-09-30: 프론트엔드팀 실제 채널 웹훅 권한을 받아서 분리한 receiver.
+    # discord-infra와 title/message 템플릿은 동일하게 맞추고 apiURL만 다른 시크릿
+    # (alertmanager-discord-webhook-frontend, app-bindings-observability.yaml 참고)을 쓴다.
+    - name: discord-frontend
+      discordConfigs:
+        - apiURL:
+            name: alertmanager-discord-webhook-frontend
+            key: webhook-url
+          sendResolved: true
           title: '{{ if eq .Status "firing" }}🔴 알림 발생{{ else }}✅ 알림 해소{{ end }}{{ if .CommonLabels.namespace }} · {{ .CommonLabels.namespace }}{{ end }} · {{ .CommonLabels.alertname }}'
           message: |-
             {{ range .Alerts }}
