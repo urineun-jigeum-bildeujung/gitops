@@ -104,6 +104,13 @@ spec:
               matchLabels:
                 app.kubernetes.io/name: "generic-service"
                 app.kubernetes.io/instance: "dev-payment-service"
+          # KEDA Kafka scaler가 consumer group lag를 조회할 때만 TLS/SASL 리스너 접근 허용.
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: "keda"
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: "keda-operator"
         authentication:
           type: scram-sha-512
     config:

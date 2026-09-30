@@ -1,0 +1,20 @@
+{{- $kafka := .Values.autoscaling.keda.kafka }}
+{{- if and (eq (include "generic-service.autoscalingMode" .) "keda") $kafka.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ default (printf "%s-kafka-auth" (include "generic-service.name" .)) $kafka.authenticationRefName }}
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: {{ $kafka.secretName }}
+      key: {{ $kafka.usernameKey }}
+    - parameter: password
+      name: {{ $kafka.secretName }}
+      key: {{ $kafka.passwordKey }}
+    - parameter: ca
+      name: {{ $kafka.secretName }}
+      key: {{ $kafka.caKey }}
+{{- end }}

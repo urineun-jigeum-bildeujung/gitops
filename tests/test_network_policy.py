@@ -14,12 +14,17 @@ API_PORTS = {"auth-service": 8443, "member-service": 8443, "order-service": 8443
 CALLERS = {"auth-service": "member-service", "member-service": "auth-service",
            "product-service": "member-service", "order-service": "payment-service"}
 OPTIONAL_CALL_ENV = {("review-service", "member-service"): "MEMBER_SERVICE_URL",
+                     ("review-service", "order-service"): "ORDER_SERVICE_URL",
+                     ("review-service", "product-service"): "PRODUCT_SERVICE_URL",
+                     ("order-service", "member-service"): "MEMBER_SERVICE_BASE_URL",
+                     ("order-service", "product-service"): "PRODUCT_SERVICE_BASE_URL",
                      ("member-service", "review-service"): "REVIEW_SERVICE_URL",
                      ("notification-service", "product-service"): "PRODUCT_SERVICE_URL"}
 DB_CLIENTS = set(API_PORTS)
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
-EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service", "order-service", "web"}
+EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service",
+                    "order-service", "notification-service", "web"}
 
 
 def read_yaml(path):
@@ -278,7 +283,7 @@ class NetworkPolicyTests(unittest.TestCase):
     def test_kafka_generated_listener_policies_are_restricted_at_source(self):
         for listener in self.kafka["spec"]["kafka"]["listeners"]:
             self.assertIn(listener["port"], [9092, 9093])
-            self.assertEqual(len(listener["networkPolicyPeers"]), 3)
+            self.assertEqual(len(listener["networkPolicyPeers"]), 4 if listener["port"] == 9093 else 3)
             synthetic = {"metadata": {"namespace": "kafka"}, "spec": {"ingress": [
                 {"from": listener["networkPolicyPeers"], "ports": [{"port": listener["port"]}]}]}}
             for s, policy in self.service_policies.items():
@@ -286,6 +291,10 @@ class NetworkPolicyTests(unittest.TestCase):
                 self.assertEqual(permits(synthetic, s, service_labels(s), listener["port"]), expected)
                 self.assertEqual(permits(policy, "kafka", KAFKA, listener["port"], "egress"), expected)
             self.assertFalse(permits(synthetic, "product-service", service_labels("wrong"), listener["port"]))
+            self.assertEqual(
+                permits(synthetic, "keda", {"app.kubernetes.io/name": "keda-operator"}, listener["port"]),
+                listener["port"] == 9093,
+            )
 
     def test_public_egress_cannot_bypass_private_or_link_local_restrictions(self):
         for s, policy in self.service_policies.items():
@@ -322,6 +331,7 @@ class NetworkPolicyTests(unittest.TestCase):
                 "member-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
                 "review-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
                 "order-service": ["petflow-dev-uploads.s3.ap-northeast-2.amazonaws.com"],
+                "notification-service": ["oauth2.googleapis.com", "fcm.googleapis.com"],
                 "web": ["business.juso.go.kr", "image.leechs.shop"],
             }[s]
             self.assertIn("acl allowed_domains dstdomain -n " + " ".join(expected) + "\n", config)

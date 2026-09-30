@@ -18,6 +18,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+자동 확장 모드. 기존 autoscaling.enabled 사용자는 동작을 유지하되 신규 선언은
+mode를 명시해서 HPA와 KEDA가 동시에 같은 워크로드를 제어하지 못하게 한다.
+*/}}
+{{- define "generic-service.autoscalingMode" -}}
+{{- $mode := default "" .Values.autoscaling.mode -}}
+{{- if eq $mode "" -}}
+{{- if .Values.autoscaling.enabled -}}hpa{{- else -}}disabled{{- end -}}
+{{- else if or (eq $mode "disabled") (eq $mode "hpa") (eq $mode "keda") -}}
+{{- $mode -}}
+{{- else -}}
+{{- fail "autoscaling.mode must be one of: disabled, hpa, keda" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "generic-service.scaleTargetApiVersion" -}}
+{{- if or .Values.canary.enabled .Values.blueGreen.enabled -}}argoproj.io/v1alpha1{{- else -}}apps/v1{{- end -}}
+{{- end -}}
+
+{{- define "generic-service.scaleTargetKind" -}}
+{{- if or .Values.canary.enabled .Values.blueGreen.enabled -}}Rollout{{- else -}}Deployment{{- end -}}
+{{- end -}}
+
+{{/*
 mTLS 활성화 시 Deployment/Rollout에 공통으로 주입하는 env — 한 곳에서만 관리해서
 deployment.yaml/rollout.yaml 둘 다 수정하는 실수(하나만 고치고 하나는 빠뜨리는 것)를
 방지한다.
