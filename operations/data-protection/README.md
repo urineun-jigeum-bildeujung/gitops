@@ -23,3 +23,16 @@ kubectl --context petflow-dev -n database get pvc \
 ```
 
 운영 `petflow-db`, `petflow-db-backups` ObjectStore, `cnpg/` S3 객체는 삭제하지 않는다.
+
+## CNPG · Redis 장바구니 · Kafka 통합 복원
+
+통합 유지보수 실행과 복원은 인접 infra 저장소의
+`docs/stateful-backup-restore.md`를 따른다. `stateful-qualification.example.json`은
+격리 복원 검증 결과를 기록하는 예시이며 실제 성공 증거가 아니다. 2026-10-01 KST에
+CNPG S3/WAL·EBS, Redis cart 및 Kafka의 실제 격리 복원 시험을 완료했다. 결과와 범위는
+infra의 `docs/backup-restore-measurement-20261001.md`를 참조한다. 구성요소별 시험이며
+동일 실행의 통합 manifest 및 전체 destroy/apply qualification은 아직 완료하지 않았다.
+승인된 통합 검증 보고서 없이는 새 destroy 흐름이 서비스 중지 전에 중단된다.
+
+`task bootstrap:root-app`은 `database/stateful-recovery`의 ready 상태와 CNPG/Redis/Kafka
+준비 상태를 확인한다. 정상 부트스트랩은 infra의 데이터 복원 및 검증 이후에 수행한다.

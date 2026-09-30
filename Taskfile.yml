@@ -9,6 +9,12 @@ tasks:
       - task: validate:network-policy
       - task: validate:alloy-redaction
       - task: validate:resource-duplicates
+      - task: validate:stateful-recovery
+
+  validate:stateful-recovery:
+    desc: 통합 데이터 복원 완료 전에 서비스 bootstrap을 차단하는지 오프라인 검증
+    cmds:
+      - python3 tests/test_stateful_recovery_gate.py
 
   validate:alloy-redaction:
     desc: Faro 로그 민감정보 마스킹 규칙(Alloy stage.replace)이 실제 Alloy 동작대로 가리는지 검증
@@ -140,6 +146,7 @@ tasks:
       - sh: kubectl get namespace argocd
         msg: "argocd 네임스페이스가 없습니다. bootstrap:argocd를 먼저 실행하세요."
     cmds:
+      - ./scripts/verify-stateful-recovery.sh
       - kubectl apply -f bootstrap/root-app.yaml
       - echo "root-app 적용 완료. 'kubectl get application -n argocd'로 자식 Application들이 생성되는지 확인하세요."
 

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "isolated": true,
+  "verifiedAt": "REPLACE_AFTER_REAL_TEST",
+  "evidenceUri": "REPLACE_WITH_ISOLATED_TEST_REPORT",
+  "kafkaVersion": "3.9.0",
+  "strimziVersion": "0.45.2",
+  "sourceHashes": {},
+  "checks": {
+    "coldRestore": false,
+    "clusterIdentity": false,
+    "committedOffsets": false,
+    "messages": false,
+    "scramAuthentication": false,
+    "produceConsumeAfterRestore": false,
+    "cartOnly": false,
+    "redisRestart": false,
+    "partialRestoreRetry": false
+  }
+}
