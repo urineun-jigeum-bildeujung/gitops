@@ -1,6 +1,27 @@
 # Trivy Operator — 클러스터에 떠 있는 워크로드의 컨테이너 이미지를 주기적으로 스캔해서
 # 취약점을 VulnerabilityReport(CRD)로 만들어준다. ECR의 push-time 스캔(basic)과 달리
 # 이미 배포된 워크로드를 계속 재스캔해서, 배포 이후 새로 발견된 CVE도 잡아낸다.
+#
+# 2026-09-30 (gitops#126): 지금까지 이 파일이 차트 디폴트값(resources: {}만 있는
+# 빈 설정)이었던 게 NAT Gateway 트래픽 급증(9월 약 2.9TB)의 핵심 원인으로
+# 드러났다. Standalone 모드라 스캔 job마다 취약점 DB를 mirror.gcr.io에서 매번
+# 새로 받는데, 동시 10개씩(OPERATOR_CONCURRENT_SCAN_JOBS_LIMIT 디폴트) 실패 →
+# 30초 뒤 재시도(OPERATOR_SCAN_JOB_RETRY_AFTER 디폴트)를 반복하면서 트래픽이
+# 계속 쌓였다. 실측: trivy-operator 로그에서
+# "unable to initialize fs cache: cache may be in use by another process:
+# timeout"(동시 스캔 job들이 같은 로컬 캐시를 잡으려다 충돌) 다수 확인.
+#
+# 참고로 ECR 인증 자체가 아예 없어서(Pod Identity 미연결) petflow 자체
+# 이미지 스캔은 지금까지 전부 401로 실패하고 있었는데, 그건 이 파일이 아니라
+# infra 레포(Terraform, trivy-operator용 Pod Identity 신설)에서 별도로 고친다 —
+# 여기서는 "이미 실패할 게 뻔한 대상(EKS 관리형 애드온 이미지)에 재시도를
+# 반복하는 것"과 "동시성/캐시 충돌로 인한 트래픽 낭비"만 줄인다.
+#
+# 추가(같은 날, infra Pod Identity 적용 직후 실측): ECR 인증이 뚫리고 나니
+# 이번엔 review-service 등 우리 서비스(charts/generic-service, 컨테이너명
+# "generic-service") 이미지 스캔이 전부 OOMKilled로 실패하는 걸 확인함.
+# 스캔 job 컨테이너의 디폴트 메모리 limit(500M)이 Spring Boot fat jar 이미지
+# 스캔엔 부족한 것으로 보여 아래 trivy.resources로 올림.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,6 +41,49 @@ spec:
       releaseName: trivy-operator
       values: |
         resources: {}
+
+        trivy:
+          # 스캔 job(Trivy 프로세스) 컨테이너 자체의 요청/제한값. 디폴트
+          # limits.memory: 500M로는 우리 서비스(Spring Boot fat jar) 이미지
+          # 스캔이 OOMKilled로 실패하는 것을 실측으로 확인해서 올림.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 200M
+            limits:
+              cpu: 1000m
+              memory: 1024M
+
+        # 클러스터 전체(all-namespaces) 모드에서만 적용되는 옵션 — targetNamespaces가
+        # 빈 문자열(디폴트)일 때만 동작한다. kube-system은 EKS가 관리하는 애드온
+        # 이미지(별도 AWS 계정의 ECR)라 우리 IAM 권한으로는 원천적으로 못 읽는다 —
+        # 스캔을 시도해봐야 401만 반복되므로 아예 대상에서 뺀다.
+        excludeNamespaces: "kube-system"
+
+        operator:
+          # 디폴트 10개 동시 스캔 job이 같은 로컬 캐시를 두고 충돌
+          # ("cache may be in use by another process: timeout")해서 실패 → 재시도가
+          # 반복되던 것의 직접 원인. 2로 낮춰서 동시 충돌 자체를 줄인다.
+          scanJobsConcurrentLimit: 2
+
+          # Standalone 모드는 스캔 job(=Trivy 프로세스)마다 취약점 DB를
+          # mirror.gcr.io에서 매번 새로 받는 구조라 이게 NAT 트래픽의 가장 큰
+          # 비중을 차지했다. builtInTrivyServer를 켜면 trivy.mode가 자동으로
+          # ClientServer로 바뀌고, PVC(디폴트 5Gi)를 가진 trivy-server
+          # StatefulSet이 하나 떠서 DB를 딱 한 번만 받아 캐싱하고, 개별 스캔
+          # job은 그 서버에 물어보기만 하는 가벼운 클라이언트가 된다.
+          builtInTrivyServer: true
+
+        # 주의: skipResourceByLabels는 위 operator: 블록이 아니라 이 차트에서
+        # 별도로 존재하는 trivyOperator: 최상위 키에 속한다(helm template로
+        # 렌더링해서 직접 확인함 — operator: 밑에 넣으면 조용히 무시된다).
+        trivyOperator:
+          # Jenkins Kubernetes Cloud 설정(jenkins-jenkins-jcasc-config ConfigMap의
+          # clouds.kubernetes.podLabels)에서 모든 CI 에페메럴 빌드 파드(jnlp/kaniko/
+          # trivy/crane/awscli 등)에 이 라벨이 찍히는 걸 확인함. 네임스페이스 전체
+          # (jenkins)를 빼면 jenkins-0 컨트롤러 파드까지 스캔에서 빠지게 되므로,
+          # 라벨 기반으로 빌드 파드만 정밀하게 제외한다.
+          skipResourceByLabels: "jenkins/jenkins-jenkins-agent"
   destination:
     server: https://kubernetes.default.svc
     namespace: trivy-system
