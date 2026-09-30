@@ -1,0 +1,54 @@
+# 프론트엔드(web) 조사서(2026-09-14)가 요청한 알림 2종. 백엔드 8개(petflow-golden-signals)는
+# Prometheus 메트릭 기반이라 PrometheusRule로 만들었지만, 이건 Faro가 Loki에 남긴 브라우저
+# 이벤트(로그)가 원본이라 Prometheus로는 못 만들고 Loki 자체 Ruler로 만든다.
+#
+# Loki 차트(deploymentMode: SingleBinary)는 별도 ruler 파드를 안 띄우고 singleBinary 파드
+# 안에서 -target=all로 같이 돈다 — 그래서 이 ConfigMap은 (kube-prometheus-stack의
+# PrometheusRule CRD와 달리) singleBinary 파드에 직접 볼륨 마운트해서 씀
+# (platform/30-loki/application.yaml의 singleBinary.extraVolumes 참고). Loki auth_enabled:
+# false라 내부적으로 전부 "fake" 테넌트로 처리되므로, 룰 파일은 반드시
+# <storage.local.directory>/fake/ 밑에 있어야 Ruler가 읽는다(ConfigMap volume의
+# items[].path로 그 서브디렉토리 구조를 만든다).
+#
+# 임계값은 2026-09-30 실측 기준(FrontendJsErrorSpike: 최근 24시간 10분당 예외 평균 1.6건/
+# 최대 6건 → 10건을 임계값으로. FrontendOrderApiFailureSustained: 같은 기간 주문 흐름 API
+# 실패율 평균 약 21%였는데 이건 목데이터/테스트 트래픽이 섞인 dev 환경 수치라 그대로 쓰면
+# 너무 자주 울림 — 30%로 여유를 둠). 프론트엔드팀이 조사서에서 "구체적 임계값은 실제
+# 트래픽 보고 정하는 게 맞다"고 명시했으므로, 실사용자 트래픽 생기면 반드시 재조정 필요.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-frontend-alert-rules
+  namespace: observability
+data:
+  frontend-alerts.yaml: |
+    groups:
+      - name: petflow.frontend
+        rules:
+          - alert: FrontendJsErrorSpike
+            expr: |
+              sum(count_over_time({service_name=~"petflow-web|unknown_service"} |= "app_name=petflow-web" |= "kind=exception" [10m])) > 10
+            for: 5m
+            labels:
+              severity: warning
+              namespace: web
+            annotations:
+              summary: "web 프론트엔드 JS 예외 급증"
+              description: "최근 10분간 브라우저에서 잡힌 JS 예외가 {{ $value }}건입니다 (평소 10분당 1~2건 수준 대비 급증)."
+              runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/frontend-js-error-spike.md"
+
+          - alert: FrontendOrderApiFailureSustained
+            expr: |
+              (
+                sum(count_over_time({service_name=~"petflow-web|unknown_service"} |= "app_name=petflow-web" |= "faro.tracing.fetch" | logfmt | event_data_url_full=~".*api/v1/(carts|orders|payments).*" | event_data_http_response_status_code >= 400 or event_data_http_response_status_code == 0 [5m]))
+                /
+                sum(count_over_time({service_name=~"petflow-web|unknown_service"} |= "app_name=petflow-web" |= "faro.tracing.fetch" | logfmt | event_data_url_full=~".*api/v1/(carts|orders|payments).*" [5m]))
+              ) > 0.3
+            for: 5m
+            labels:
+              severity: critical
+              namespace: web
+            annotations:
+              summary: "web 주문 흐름(장바구니/주문/결제) API 실패율 급증"
+              description: "브라우저에서 잰 /api/v1/{carts,orders,payments} 호출 실패율이 {{ $value | humanizePercentage }}로 5분 이상 지속되고 있습니다."
+              runbook_url: "https://github.com/urineun-jigeum-bildeujung/gitops/blob/main/docs/runbooks/frontend-order-api-failure.md"

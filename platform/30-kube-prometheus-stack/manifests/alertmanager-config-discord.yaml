@@ -31,10 +31,16 @@ spec:
     # 전부 쏟아져서, 우리가 실제로 작성한 골든시그널 알림 8개(petflow-golden-signals,
     # alert-rules.yaml)로만 명시적으로 한정한다. 새 알림 규칙을 추가하면 여기 정규식에도
     # 같이 추가해야 디스코드로 나간다.
+    #
+    # FrontendJsErrorSpike/FrontendOrderApiFailureSustained(2026-09-30 추가,
+    # platform/30-loki/manifests/frontend-alert-rules.yaml)는 프론트엔드팀 전용
+    # 알림이라 원래는 별도 채널로 가야 맞는데, 아직 그 팀 Discord 웹훅이 없어서
+    # 일단 여기(인프라 채널)로 임시로 같이 받는다. 프론트엔드팀 웹훅이 생기면
+    # 이 두 알림만 별도 receiver(routes 하위)로 분리해야 함.
     matchers:
       - name: alertname
         matchType: "=~"
-        value: "HighErrorRate|HighLatencyP99|ServiceDown|PodCrashLooping|PodNotReady|HighMemoryUsage|HighCPUUsage|HikariCPConnectionPoolExhausted"
+        value: "HighErrorRate|HighLatencyP99|ServiceDown|PodCrashLooping|PodNotReady|HighMemoryUsage|HighCPUUsage|HikariCPConnectionPoolExhausted|FrontendJsErrorSpike|FrontendOrderApiFailureSustained"
     # 팀별 채널 요청이 오면 여기 routes 밑에 matchers(예: namespace)로 특정 알림만
     # 골라내는 하위 route + 전용 receiver를 추가하면 된다. 지금은 전부 여기로 받는다.
     routes: []
