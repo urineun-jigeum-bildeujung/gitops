@@ -32,7 +32,8 @@ kubectl --context petflow-dev -n database get pvc \
 CNPG S3/WAL·EBS, Redis cart 및 Kafka의 실제 격리 복원 시험을 완료했다. 결과와 범위는
 infra의 `docs/backup-restore-measurement-20261001.md`를 참조한다. 구성요소별 시험이며
 동일 실행의 통합 manifest 및 전체 destroy/apply qualification은 아직 완료하지 않았다.
-승인된 통합 검증 보고서 없이는 새 destroy 흐름이 서비스 중지 전에 중단된다.
+검증 보고서는 참고용 기록이며 실행 전제조건이 아니다. `./tdestroy.sh`는 별도 로컬
+보고서 지정 없이 서비스 중단·백업을 수행하며 백업 검증이 실패하면 삭제를 중단한다.
 
 `task bootstrap:root-app`은 `database/stateful-recovery`의 ready 상태와 CNPG/Redis/Kafka
 준비 상태를 확인한다. 정상 부트스트랩은 infra의 데이터 복원 및 검증 이후에 수행한다.
