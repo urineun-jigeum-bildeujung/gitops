@@ -1,0 +1,35 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: overprovisioning
+value: -10
+globalDefault: false
+description: "Karpenter 도입 전 사용한 여유 용량 예약용 우선순위"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: overprovisioning
+  namespace: kube-system
+  labels:
+    app: overprovisioning
+spec:
+  # 실수요 Pending Pod가 Karpenter를 호출하므로 더미 CPU 예약은 비활성화한다.
+  replicas: 0
+  selector:
+    matchLabels:
+      app: overprovisioning
+  template:
+    metadata:
+      labels:
+        app: overprovisioning
+    spec:
+      priorityClassName: overprovisioning
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10.1
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi

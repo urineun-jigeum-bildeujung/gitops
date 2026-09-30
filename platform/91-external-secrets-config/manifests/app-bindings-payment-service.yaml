@@ -111,11 +111,20 @@ spec:
   target:
     name: kafka-credentials
     creationPolicy: Owner
+    template:
+      mergePolicy: Merge
+      data:
+        # KafkaUser 이름은 비밀값이 아니며 KEDA TriggerAuthentication이 참조한다.
+        username: payment-service
   data:
     - secretKey: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
       remoteRef:
         key: payment-service
         property: sasl.jaas.config
+    - secretKey: password
+      remoteRef:
+        key: payment-service
+        property: password
     - secretKey: ca.crt
       remoteRef:
         key: pet-subscription-kafka-cluster-ca-cert
