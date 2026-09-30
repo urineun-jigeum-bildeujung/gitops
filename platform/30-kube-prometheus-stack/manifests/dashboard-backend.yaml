@@ -1,4 +1,4 @@
-# 백엔드팀 관측성 조사서(문시원·노여진, 2026-09-30) 요청사항 중 golden-signals/
+# 백엔드팀 관측성 조사서(2026-09-30) 요청사항 중 golden-signals/
 # errors-availability/jvm-runtime(namespace 단위 범용 대시보드)로는 못 보여주는
 # uri별·쿼리별 세부 지표 전용 대시보드. 기존 대시보드를 건드리지 않고 새로 분리했다.
 #
