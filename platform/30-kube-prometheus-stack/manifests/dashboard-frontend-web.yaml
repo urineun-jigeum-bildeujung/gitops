@@ -5,6 +5,16 @@
 # Faro 로그는 Alloy가 service_name=petflow-web 라벨을 붙이기 전에는 unknown_service로 저장돼 있어서,
 # 라벨 변경 전후 데이터를 함께 보려고 두 값을 모두 조회한다.
 # kube-prometheus-stack의 grafana sidecar가 grafana_dashboard=1 라벨 붙은 ConfigMap을 자동으로 읽는다.
+#
+# 프론트엔드 조사서(2026-09-14)가 요청한 "SSR 요청량"/"SSR 렌더링 시간"은 아직 못 만든다 —
+# web이 /metrics로 내보내는 건 prom-client 기본 제공 지표(process_*, nodejs_*)뿐이고, HTTP
+# 요청 카운터/응답시간 히스토그램은 없음(2026-09-30 Prometheus에서 web 네임스페이스 전체
+# 메트릭 목록 직접 확인). 이건 web 저장소 쪽에서 커스텀 서버/미들웨어에 prom-client
+# Counter/Histogram을 추가해야 나오는 지표라 gitops 쪽 설정만으로는 해결 불가 — 프론트엔드
+# 팀에 요청 필요. "API 호출 실패율·지연"은 대신 브라우저 Faro의 faro.tracing.fetch 이벤트
+# (event_data_duration_ns, event_data_http.response.status_code)로 추가함 — 이건 브라우저가
+# 관찰한 값이라 SSR 서버 자체 지표는 아니지만, 조사서의 "API 호출 실패율·지연(브라우저에서 잰 값)"
+# 요구사항은 이걸로 충족됨.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -169,9 +179,56 @@ data:
           ]
         },
         {
+          "type": "stat",
+          "title": "API 실패율",
+          "description": "브라우저에서 잰 fetch 요청 중 4xx/5xx 또는 네트워크 에러(status=0, CORS 차단/타임아웃 등) 비율. 2026-09-30 실측 LogQL로 검증(당시 6.4%).",
+          "gridPos": {"h": 4, "w": 8, "x": 0, "y": 22},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 5}, {"color": "red", "value": 10}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "(sum by (app_name) (count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"faro.tracing.fetch\" | logfmt | event_data_http_response_status_code >= 400 or event_data_http_response_status_code == 0 [$__range])) / sum by (app_name) (count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"faro.tracing.fetch\" | logfmt [$__range]))) * 100", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "API 응답 지연 (p75)",
+          "description": "브라우저에서 잰 fetch 요청 왕복 시간(네트워크 포함). 서버가 재는 응답시간과 다름 — 네트워크 지연/CORS/타임아웃까지 포함된 사용자 체감 값.",
+          "gridPos": {"h": 4, "w": 8, "x": 8, "y": 22},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "ns", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "quantile_over_time(0.75, {service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"faro.tracing.fetch\" | logfmt | unwrap event_data_duration_ns [$__range]) by (app_name)", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "API 총 호출 수",
+          "description": "조회 기간에 브라우저가 보낸 fetch 요청 총 건수(성공+실패).",
+          "gridPos": {"h": 4, "w": 8, "x": 16, "y": 22},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "noValue": "데이터 없음"}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"},
+          "targets": [
+            {"expr": "sum by (app_name) (count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"faro.tracing.fetch\" | logfmt [$__range]))", "queryType": "instant"}
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "API 응답 상태 코드별 건수",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 26},
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "fillOpacity": 60, "stacking": {"mode": "normal"}}}, "overrides": []},
+          "targets": [
+            {"expr": "sum by (event_data_http_response_status_code) (count_over_time({service_name=~\"petflow-web|unknown_service\"} |= \"app_name=petflow-web\" |= \"faro.tracing.fetch\" | logfmt [$__interval]))", "legendFormat": "{{event_data_http_response_status_code}}"}
+          ],
+          "description": "상태 코드 0 = 네트워크 에러(응답 자체를 못 받음, CORS 차단/타임아웃 등). 주문 흐름 API 실패 추적에 사용."
+        },
+        {
           "type": "timeseries",
           "title": "이벤트 종류별 발생량",
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 34},
           "datasource": {"type": "loki", "uid": "loki"},
           "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "fillOpacity": 60, "stacking": {"mode": "normal"}}}, "overrides": []},
           "targets": [
@@ -182,7 +239,7 @@ data:
         {
           "type": "timeseries",
           "title": "예외 발생 수",
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 34},
           "datasource": {"type": "loki", "uid": "loki"},
           "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "fillOpacity": 60}}, "overrides": []},
           "targets": [
@@ -193,7 +250,7 @@ data:
         {
           "type": "logs",
           "title": "최근 예외",
-          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 30},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 42},
           "datasource": {"type": "loki", "uid": "loki"},
           "description": "가장 최근 브라우저 예외. 민감정보는 수집 서버(Alloy)에서 가린 뒤 저장된다.",
           "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending"},
