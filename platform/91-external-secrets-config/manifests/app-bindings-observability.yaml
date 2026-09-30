@@ -3,10 +3,10 @@
 # 네임스페이스의 K8s Secret으로 가져온다. gateway-secret/oauth2-credentials와 동일한
 # provider.aws/ClusterSecretStore(aws-secrets-manager) 패턴.
 #
-# 2026-09-29 기준: "클라우드 인프라" 팀 채널 웹훅 권한을 아직 못 받아서 값 자체는
-# 사용자 개인 디스코드 임시 웹훅이다. 팀 채널 권한 받으면 AWS Secrets Manager 값만
-# 교체하면 되고 이 파일/platform/30-kube-prometheus-stack은 다시 건드릴 필요 없다
-# (ExternalSecret refreshInterval 1h + Alertmanager가 파일 변경 자동 감지).
+# 2026-09-29에 "클라우드 인프라" 팀 채널 웹훅 권한이 없어 개인 디스코드로 임시
+# 연결했었는데, 2026-09-30에 팀 채널 웹훅 권한을 받아서 AWS Secrets Manager 값을
+# 실제 팀 채널 웹훅으로 교체했다(이 파일/platform/30-kube-prometheus-stack은
+# 안 건드림 — ExternalSecret refreshInterval 1h + Alertmanager가 파일 변경 자동 감지).
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
