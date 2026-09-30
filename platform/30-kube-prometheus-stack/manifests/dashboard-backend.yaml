@@ -1,0 +1,216 @@
+# 백엔드팀 관측성 조사서(문시원·노여진, 2026-09-30) 요청사항 중 golden-signals/
+# errors-availability/jvm-runtime(namespace 단위 범용 대시보드)로는 못 보여주는
+# uri별·쿼리별 세부 지표 전용 대시보드. 기존 대시보드를 건드리지 않고 새로 분리했다.
+#
+# 조사 중 확인된 제약사항(패널에 안 넣은 것들, 전부 커스텀 계측 필요 — 우리 범위 밖):
+# - 상품 상세조회(GET /api/v1/products/{productId})의 DB 쿼리 시간: product-service가
+#   실제로 계측 중인 레포지토리 메서드는 ProductOutboxJpaRepository/StockMovementJpaRepository
+#   뿐이고 상세조회가 쓰는 쿼리 자체는 계측 대상이 아님 — 보여줄 데이터가 없음.
+# - 재고 차감의 "원자적 UPDATE 대기 시간": HikariCP 커넥션 풀 대기와는 다른 개념(DB row
+#   lock 대기)이라 지금 지표로는 볼 수 없음.
+# - 리뷰 필터 파라미터 사용 빈도, FCM 발송 성공/실패 건수, 중복 발송 감지: 관련 메트릭
+#   자체가 아예 없음.
+# - api-gateway 전체: actuator/prometheus 스크레이프 자체가 안 잡혀서(2026-09-30 확인,
+#   up{namespace="api-gateway"} 쿼리 결과 0건) 이번 대시보드에서 통째로 제외.
+#
+# 재고 차감/리뷰 필터조회는 uri에 없는 "DB 시간 비중"을 계산하는 대신, 요청 전체
+# 평균시간과 레포지토리 평균시간을 같은 그래프에 나란히 그리는 방식을 씀 — 두 메트릭
+# 다 percentile 버킷(histogram)이 없는 Timer(_count/_sum/_max만 있음)라 p95는 못 내고
+# rate(_sum)/rate(_count)로 평균만 낼 수 있음.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-backend
+  labels:
+    grafana_dashboard: "1"
+data:
+  backend.json: |
+    {
+      "title": "백엔드",
+      "uid": "petflow-backend",
+      "tags": ["petflow", "backend"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          { "name": "datasource", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 }
+        ]
+      },
+      "panels": [
+        { "type": "row", "title": "상품 검색 / 상세조회 (product-service)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+        {
+          "type": "timeseries",
+          "title": "검색 p95 / p99 지연시간",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"product-service\", uri=\"/api/v1/products/search\"}[$__rate_interval])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"product-service\", uri=\"/api/v1/products/search\"}[$__rate_interval])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "검색 5xx 에러율 (%)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/api/v1/products/search\", status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/api/v1/products/search\"}[$__rate_interval])) * 100", "legendFormat": "에러율" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "상세조회 p95 / p99 지연시간 (DB 쿼리 시간은 계측 안 됨 — 상단 주석 참고)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"product-service\", uri=\"/api/v1/products/{productId}\"}[$__rate_interval])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"product-service\", uri=\"/api/v1/products/{productId}\"}[$__rate_interval])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "상세조회 5xx 에러율 (%)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/api/v1/products/{productId}\", status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/api/v1/products/{productId}\"}[$__rate_interval])) * 100", "legendFormat": "에러율" }
+          ]
+        },
+
+        { "type": "row", "title": "재고 차감 (product-service)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 } },
+        {
+          "type": "timeseries",
+          "title": "재고차감 p95 / p99 지연시간",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"product-service\", uri=\"/internal/inventory/reserve-bulk\"}[$__rate_interval])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"product-service\", uri=\"/internal/inventory/reserve-bulk\"}[$__rate_interval])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "재고차감 5xx 에러율 (%)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/internal/inventory/reserve-bulk\", status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/internal/inventory/reserve-bulk\"}[$__rate_interval])) * 100", "legendFormat": "에러율" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "재고차감 평균 응답시간 vs DB(재고이동 기록) 평균시간",
+          "description": "전체 API 평균 응답시간과 StockMovementJpaRepository.insertIfAbsent(재고 이동 기록 저장) 평균 시간을 나란히 비교. 두 메트릭 다 히스토그램이 없어 p95는 못 내고 평균만 가능.",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(http_server_requests_seconds_sum{namespace=\"product-service\", uri=\"/internal/inventory/reserve-bulk\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{namespace=\"product-service\", uri=\"/internal/inventory/reserve-bulk\"}[$__rate_interval]))", "legendFormat": "재고차감 API 전체 평균" },
+            { "expr": "sum(rate(spring_data_repository_invocations_seconds_sum{namespace=\"product-service\", repository=\"StockMovementJpaRepository\", method=\"insertIfAbsent\"}[$__rate_interval])) / sum(rate(spring_data_repository_invocations_seconds_count{namespace=\"product-service\", repository=\"StockMovementJpaRepository\", method=\"insertIfAbsent\"}[$__rate_interval]))", "legendFormat": "DB(재고이동 기록) 평균" }
+          ]
+        },
+
+        { "type": "row", "title": "주문 생성 (order-service)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 } },
+        {
+          "type": "timeseries",
+          "title": "주문 생성 p95 / p99 지연시간",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"order-service\", uri=\"/api/v1/orders\", method=\"POST\"}[$__rate_interval])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"order-service\", uri=\"/api/v1/orders\", method=\"POST\"}[$__rate_interval])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "주문 생성 5xx 에러율 (%)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"order-service\", uri=\"/api/v1/orders\", method=\"POST\", status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{namespace=\"order-service\", uri=\"/api/v1/orders\", method=\"POST\"}[$__rate_interval])) * 100", "legendFormat": "에러율" }
+          ]
+        },
+
+        { "type": "row", "title": "리뷰 필터 조회 (review-service)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 } },
+        {
+          "type": "timeseries",
+          "title": "필터조회 p95 / p99 지연시간",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"review-service\", uri=\"/api/v1/reviews/products/{productId}\"}[$__rate_interval])) by (le))", "legendFormat": "p95" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{namespace=\"review-service\", uri=\"/api/v1/reviews/products/{productId}\"}[$__rate_interval])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "필터조회 5xx 에러율 (%)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"review-service\", uri=\"/api/v1/reviews/products/{productId}\", status=~\"5..\"}[$__rate_interval])) / sum(rate(http_server_requests_seconds_count{namespace=\"review-service\", uri=\"/api/v1/reviews/products/{productId}\"}[$__rate_interval])) * 100", "legendFormat": "에러율" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "필터조회 메인쿼리 vs 후속 호출 평균시간",
+          "description": "메인쿼리: ReviewJpaRepository.findRecentReviewIdsWithImageByProductId. 후속 호출: 리뷰 이미지/질문/추천 수 조회(ReviewImageJpaRepository, ReviewQuestionJpaRepository, ReviewRecommendJpaRepository) 합산. 둘 다 히스토그램이 없어 평균만 가능.",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 52 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(spring_data_repository_invocations_seconds_sum{namespace=\"review-service\", repository=\"ReviewJpaRepository\", method=\"findRecentReviewIdsWithImageByProductId\"}[$__rate_interval])) / sum(rate(spring_data_repository_invocations_seconds_count{namespace=\"review-service\", repository=\"ReviewJpaRepository\", method=\"findRecentReviewIdsWithImageByProductId\"}[$__rate_interval]))", "legendFormat": "메인쿼리 평균" },
+            { "expr": "sum(rate(spring_data_repository_invocations_seconds_sum{namespace=\"review-service\", repository=~\"ReviewImageJpaRepository|ReviewQuestionJpaRepository|ReviewRecommendJpaRepository\"}[$__rate_interval])) / sum(rate(spring_data_repository_invocations_seconds_count{namespace=\"review-service\", repository=~\"ReviewImageJpaRepository|ReviewQuestionJpaRepository|ReviewRecommendJpaRepository\"}[$__rate_interval]))", "legendFormat": "후속 호출 평균 (합산)" }
+          ]
+        },
+
+        { "type": "row", "title": "타임딜 알림 스케줄러 (notification-service)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 } },
+        {
+          "type": "timeseries",
+          "title": "스케줄러 실행 성공/실패 건수 (10분 누적)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 30 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(increase(tasks_scheduled_execution_seconds_count{namespace=\"notification-service\", code_function=\"checkTimeDeals\"}[10m])) by (outcome)", "legendFormat": "{{outcome}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "스케줄러 소요시간 (평균 / 최대)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "sum(rate(tasks_scheduled_execution_seconds_sum{namespace=\"notification-service\", code_function=\"checkTimeDeals\"}[$__rate_interval])) / sum(rate(tasks_scheduled_execution_seconds_count{namespace=\"notification-service\", code_function=\"checkTimeDeals\"}[$__rate_interval]))", "legendFormat": "평균" },
+            { "expr": "max(tasks_scheduled_execution_seconds_max{namespace=\"notification-service\", code_function=\"checkTimeDeals\"})", "legendFormat": "최대" }
+          ]
+        },
+
+        { "type": "row", "title": "DB 커넥션 풀 (HikariCP)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 69 } },
+        {
+          "type": "timeseries",
+          "title": "활성 커넥션 vs 최대치 (product/order/review/notification-service)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 70 },
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+          "targets": [
+            { "expr": "hikaricp_connections_active{namespace=~\"product-service|order-service|review-service|notification-service\"}", "legendFormat": "{{namespace}} 활성" },
+            { "expr": "hikaricp_connections_max{namespace=~\"product-service|order-service|review-service|notification-service\"}", "legendFormat": "{{namespace}} 최대" }
+          ]
+        }
+      ]
+    }
