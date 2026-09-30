@@ -24,3 +24,26 @@ spec:
     - secretKey: webhook-url
       remoteRef:
         key: petflow/observability/discord-webhook-infra
+---
+# 2026-09-30: 프론트엔드팀 웹훅 권한을 받아서 FrontendJsErrorSpike/
+# FrontendOrderApiFailureSustained 2개 알림을 인프라 채널에서 분리한다
+# (alertmanager-config-discord.yaml의 discord-frontend receiver 참고).
+# AWS Secrets Manager 값(petflow/observability/discord-webhook-frontend)만
+# 실제 웹훅 URL로 채워져 있으면 되고, 이 파일은 다시 건드릴 필요 없다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: alertmanager-discord-webhook-frontend
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: alertmanager-discord-webhook-frontend
+    creationPolicy: Owner
+  data:
+    - secretKey: webhook-url
+      remoteRef:
+        key: petflow/observability/discord-webhook-frontend
