@@ -1,0 +1,45 @@
+{{- if eq (include "generic-service.autoscalingMode" .) "keda" }}
+{{- $kafka := .Values.autoscaling.keda.kafka }}
+{{- if and $kafka.enabled (or (empty $kafka.bootstrapServers) (empty $kafka.consumerGroup) (empty $kafka.topic)) }}
+{{- fail "autoscaling.keda.kafka requires bootstrapServers, consumerGroup, and topic" }}
+{{- end }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ default (printf "%s-scaler" (include "generic-service.name" .)) .Values.autoscaling.keda.scaledObjectName }}
+  labels:
+    {{- include "generic-service.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ include "generic-service.scaleTargetApiVersion" . }}
+    kind: {{ include "generic-service.scaleTargetKind" . }}
+    name: {{ include "generic-service.name" . }}
+  minReplicaCount: {{ .Values.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.autoscaling.maxReplicas }}
+  pollingInterval: {{ .Values.autoscaling.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.autoscaling.keda.cooldownPeriod }}
+  {{- with .Values.autoscaling.behavior }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        {{- toYaml . | nindent 8 }}
+  {{- end }}
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ .Values.autoscaling.targetCPUUtilizationPercentage | quote }}
+    {{- if $kafka.enabled }}
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ $kafka.bootstrapServers | quote }}
+        consumerGroup: {{ $kafka.consumerGroup | quote }}
+        topic: {{ $kafka.topic | quote }}
+        lagThreshold: {{ $kafka.lagThreshold | quote }}
+        offsetResetPolicy: {{ $kafka.offsetResetPolicy | quote }}
+        tls: enable
+        sasl: scram_sha512
+      authenticationRef:
+        name: {{ default (printf "%s-kafka-auth" (include "generic-service.name" .)) $kafka.authenticationRefName }}
+    {{- end }}
+{{- end }}

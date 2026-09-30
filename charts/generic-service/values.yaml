@@ -53,15 +53,46 @@ resources: {}
   # limits:
   #   memory: 256Mi
 
-# Kubernetes 원본 affinity 스키마. 비어 있으면 기존 Pod spec을 변경하지 않는다.
-# 서비스별 values에서 필요한 워크로드에만 node/pod affinity를 선택적으로 적용한다.
+# Kubernetes 원본 스케줄링 스키마. 비어 있으면 기존 Pod spec을 변경하지 않는다.
 affinity: {}
+nodeSelector: {}
+tolerations: []
+topologySpreadConstraints: []
 
 autoscaling:
+  # disabled | hpa | keda. 빈 문자열은 하위 호환을 위해 enabled=true면 hpa,
+  # 아니면 disabled로 해석한다. 신규 values에서는 mode를 명시한다.
+  mode: ""
   enabled: false
+  resourceName: ""
   minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 70
+  behavior: {}
+  keda:
+    scaledObjectName: ""
+    pollingInterval: 30
+    cooldownPeriod: 300
+    kafka:
+      enabled: false
+      bootstrapServers: ""
+      consumerGroup: ""
+      topic: ""
+      lagThreshold: "10"
+      offsetResetPolicy: earliest
+      authenticationRefName: ""
+      secretName: kafka-credentials
+      usernameKey: username
+      passwordKey: password
+      caKey: ca.crt
+
+podDisruptionBudget:
+  enabled: false
+  name: ""
+  minAvailable: null
+  maxUnavailable: 1
+  # 비우면 차트의 전체 selectorLabels(name+instance)를 사용한다.
+  selectorLabels: {}
 
 # Argo Rollouts 카나리/블루그린 — 둘 중 하나만 true로 (동시에 켜면 안 됨).
 # 둘 다 false면 평범한 Deployment로 배포됨.
