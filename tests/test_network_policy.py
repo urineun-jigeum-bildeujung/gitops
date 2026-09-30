@@ -20,7 +20,7 @@ OPTIONAL_CALL_ENV = {("review-service", "member-service"): "MEMBER_SERVICE_URL",
                      ("order-service", "product-service"): "PRODUCT_SERVICE_BASE_URL",
                      ("member-service", "review-service"): "REVIEW_SERVICE_URL",
                      ("notification-service", "product-service"): "PRODUCT_SERVICE_URL"}
-DB_CLIENTS = set(API_PORTS)
+DB_CLIENTS = set(API_PORTS) | {"nutrition"}
 REDIS_CLIENTS = {"auth-service", "order-service"}
 KAFKA_CLIENTS = {"product-service", "order-service", "payment-service"}
 EXTERNAL_CLIENTS = {"auth-service", "payment-service", "member-service", "review-service",
@@ -107,7 +107,8 @@ def permits(policy, namespace, pod_labels, port, direction="ingress", protocol="
 class NetworkPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.rendered = {s: render(s, VALUES / s / "values.yaml") for s in list(API_PORTS) + ["web"]}
+        cls.rendered = {s: render(s, VALUES / s / "values.yaml")
+                        for s in list(API_PORTS) + ["web", "nutrition"]}
         cls.service_policies = {s: next(p for p in policies(docs)
             if p["metadata"]["name"] == "generic-service") for s, docs in cls.rendered.items()}
         cls.gateway_rendered = render("api-gateway", VALUES / "api-gateway/values.yaml")
