@@ -16,6 +16,12 @@
 # infra 레포(Terraform, trivy-operator용 Pod Identity 신설)에서 별도로 고친다 —
 # 여기서는 "이미 실패할 게 뻔한 대상(EKS 관리형 애드온 이미지)에 재시도를
 # 반복하는 것"과 "동시성/캐시 충돌로 인한 트래픽 낭비"만 줄인다.
+#
+# 추가(같은 날, infra Pod Identity 적용 직후 실측): ECR 인증이 뚫리고 나니
+# 이번엔 review-service 등 우리 서비스(charts/generic-service, 컨테이너명
+# "generic-service") 이미지 스캔이 전부 OOMKilled로 실패하는 걸 확인함.
+# 스캔 job 컨테이너의 디폴트 메모리 limit(500M)이 Spring Boot fat jar 이미지
+# 스캔엔 부족한 것으로 보여 아래 trivy.resources로 올림.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -35,6 +41,18 @@ spec:
       releaseName: trivy-operator
       values: |
         resources: {}
+
+        trivy:
+          # 스캔 job(Trivy 프로세스) 컨테이너 자체의 요청/제한값. 디폴트
+          # limits.memory: 500M로는 우리 서비스(Spring Boot fat jar) 이미지
+          # 스캔이 OOMKilled로 실패하는 것을 실측으로 확인해서 올림.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 200M
+            limits:
+              cpu: 1000m
+              memory: 1024M
 
         # 클러스터 전체(all-namespaces) 모드에서만 적용되는 옵션 — targetNamespaces가
         # 빈 문자열(디폴트)일 때만 동작한다. kube-system은 EKS가 관리하는 애드온
