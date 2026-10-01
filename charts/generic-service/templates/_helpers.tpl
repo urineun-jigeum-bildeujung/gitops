@@ -176,8 +176,17 @@ mtls.enabled로 게이팅한다 — 위 실측은 mTLS 활성화된 7개 Java(Sp
   value: {{ printf "http://%s:3128" $proxyHost | quote }}
 - name: NO_PROXY
   value: "localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23"
+{{- else if eq .Values.externalEgress.runtime "python" }}
+# requests/urllib3/boto3는 플래그 없이도 HTTP_PROXY/HTTPS_PROXY를 기본으로 읽는다
+# (Node의 NODE_OPTIONS=--use-env-proxy 같은 opt-in 플래그가 필요 없음).
+- name: HTTP_PROXY
+  value: {{ printf "http://%s:3128" $proxyHost | quote }}
+- name: HTTPS_PROXY
+  value: {{ printf "http://%s:3128" $proxyHost | quote }}
+- name: NO_PROXY
+  value: "localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23"
 {{- else }}
-{{- fail "externalEgress.runtime must be java or node" }}
+{{- fail "externalEgress.runtime must be java, node, or python" }}
 {{- end }}
 {{- end }}
 {{- end -}}
