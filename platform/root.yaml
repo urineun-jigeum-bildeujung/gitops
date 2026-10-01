@@ -24,6 +24,17 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
+  # alloy 차트(k8s-monitoring)가 pre-delete Helm hook을 갖고 있어서, ArgoCD가 그 훅
+  # 실행을 보장하려고 alloy Application 리소스에 pre-delete-finalizer.argocd.argoproj.io
+  # 계열 finalizer 2개를 스스로 추가함(2026-10-01 확인). git에는 선언하지 않은 값이라
+  # platform-root가 이걸 영구 OutOfSync로 봄 — ArgoCD 자신이 만든 drift라 selfHeal로도
+  # 없어지지 않으므로, 비교 대상에서 이 필드만 제외한다.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      name: alloy
+      jsonPointers:
+        - /metadata/finalizers
   syncPolicy:
     automated:
       prune: true
