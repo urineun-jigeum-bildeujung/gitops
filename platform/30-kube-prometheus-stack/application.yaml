@@ -25,6 +25,22 @@ spec:
               # 알림이라 통째로 끈다.
               kubeControllerManager: false
               kubeSchedulerAlerting: false
+          prometheus:
+            prometheusSpec:
+              # 차트 기본값은 영구 저장소가 없는 emptyDir이라, 파드가 재스케줄될
+              # 때마다(노드 교체, Karpenter consolidation 등) 메트릭·알림 이력이
+              # 전부 사라진다(2026-10-01 실제로 겪음 — 사후 장애 조사 자체가
+              # 막혔음). Grafana/Loki와 동일하게 PVC를 붙여 재시작을 버티게 한다.
+              retention: 15d
+              storageSpec:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: gp3
+                    accessModes:
+                      - ReadWriteOnce
+                    resources:
+                      requests:
+                        storage: 20Gi
           grafana:
             enabled: true
             # Argo CD가 Helm chart를 렌더링할 때마다 관리자 Secret의 랜덤값이
