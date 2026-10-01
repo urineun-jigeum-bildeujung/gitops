@@ -241,8 +241,12 @@ class NetworkPolicyTests(unittest.TestCase):
                          [{"name": "http", "port": 80, "targetPort": 8080, "protocol": "TCP"}])
         certificate = next(d for d in self.gateway_rendered if d["kind"] == "Certificate")
         self.assertIn("client auth", certificate["spec"]["usages"])
-        self.assertFalse(any(d["kind"] in ["ServiceMonitor", "Rollout"]
-                             for d in self.gateway_rendered))
+        self.assertFalse(any(d["kind"] == "Rollout" for d in self.gateway_rendered))
+        # 2026-09-30: gitops-value#71로 api-gateway의 metrics.enabled: false 오버라이드를
+        # 제거해서 차트 기본값(true)이 적용됨 — 이제 ServiceMonitor가 렌더링되는 게 맞는 상태.
+        service_monitor = next(d for d in self.gateway_rendered if d["kind"] == "ServiceMonitor")
+        self.assertEqual(service_monitor["spec"]["endpoints"][0]["path"], "/actuator/prometheus")
+        self.assertEqual(service_monitor["metadata"]["labels"]["release"], "kube-prometheus-stack")
         ingress = next(d for d in self.gateway_rendered if d["kind"] == "Ingress")
         self.assertEqual(ingress["spec"]["rules"][0]["host"], "leechs.shop")
         self.assertEqual(
