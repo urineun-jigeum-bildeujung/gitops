@@ -130,7 +130,7 @@ networkPolicy:
 # AWS VPC CNI 표준 NetworkPolicy에는 FQDN selector가 없다.
 externalEgress:
   enabled: false
-  runtime: java # java 또는 node (Node >=22.21.0 필요)
+  runtime: java # java, node(>=22.21.0 필요), 또는 python
   allowedDomains: []
   image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
   replicas: 2
