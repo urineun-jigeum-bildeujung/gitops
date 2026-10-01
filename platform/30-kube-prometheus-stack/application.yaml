@@ -27,6 +27,14 @@ spec:
               kubeSchedulerAlerting: false
           grafana:
             enabled: true
+            # Argo CD가 Helm chart를 렌더링할 때마다 관리자 Secret의 랜덤값이
+            # 바뀌면 PVC의 Grafana DB 비밀번호와 Kubernetes Secret이 어긋난다.
+            # AWS Secrets Manager를 원본으로 하는 ExternalSecret을 참조해
+            # 재동기화와 클러스터 재생성 뒤에도 같은 관리자 계정을 사용한다.
+            admin:
+              existingSecret: grafana-admin-credentials
+              userKey: admin-user
+              passwordKey: admin-password
             # Grafana 사용자/설정을 Pod 재생성 후에도 유지한다.
             persistence:
               enabled: true

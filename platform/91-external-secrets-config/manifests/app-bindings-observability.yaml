@@ -25,6 +25,31 @@ spec:
       remoteRef:
         key: petflow/observability/discord-webhook-infra
 ---
+# Grafana chart가 랜덤 관리자 Secret을 다시 렌더링하지 않도록 AWS Secrets Manager의
+# 고정 자격증명을 가져온다. 실제 값은 Git에 저장하지 않는다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-admin-credentials
+  namespace: observability
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: grafana-admin-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: admin-user
+      remoteRef:
+        key: petflow/grafana/admin-credentials
+        property: admin-user
+    - secretKey: admin-password
+      remoteRef:
+        key: petflow/grafana/admin-credentials
+        property: admin-password
+---
 # 2026-09-30: 프론트엔드팀 웹훅 권한을 받아서 FrontendJsErrorSpike/
 # FrontendOrderApiFailureSustained 2개 알림을 인프라 채널에서 분리한다
 # (alertmanager-config-discord.yaml의 discord-frontend receiver 참고).
