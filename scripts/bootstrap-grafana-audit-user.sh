@@ -14,6 +14,7 @@ AWS_SECRET_NAME="${GRAFANA_AUDIT_AWS_SECRET_NAME:-petflow/grafana/security-audit
 KUBE_CONTEXT="${KUBE_CONTEXT:-petflow-dev}"
 NAMESPACE="${GRAFANA_NAMESPACE:-observability}"
 GRAFANA_SERVICE="${GRAFANA_SERVICE:-kube-prometheus-stack-grafana}"
+GRAFANA_ADMIN_SECRET_NAME="${GRAFANA_ADMIN_SECRET_NAME:-grafana-admin-credentials}"
 LOGIN="security-audit"
 LOCAL_PORT="${GRAFANA_BOOTSTRAP_LOCAL_PORT:-13000}"
 TEMP_DIR=""
@@ -70,10 +71,10 @@ fi
   || fail '저장된 Grafana 비밀번호에 지원하지 않는 개행 문자가 있습니다.'
 
 admin_user_b64="$("${KUBECTL_BIN}" --context "${KUBE_CONTEXT}" -n "${NAMESPACE}" \
-  get secret kube-prometheus-stack-grafana -o 'go-template={{index .data "admin-user"}}' 2>/dev/null)" \
+  get secret "${GRAFANA_ADMIN_SECRET_NAME}" -o 'go-template={{index .data "admin-user"}}' 2>/dev/null)" \
   || fail 'Grafana 관리자 Kubernetes Secret을 조회하지 못했습니다.'
 admin_password_b64="$("${KUBECTL_BIN}" --context "${KUBE_CONTEXT}" -n "${NAMESPACE}" \
-  get secret kube-prometheus-stack-grafana -o 'go-template={{index .data "admin-password"}}' 2>/dev/null)" \
+  get secret "${GRAFANA_ADMIN_SECRET_NAME}" -o 'go-template={{index .data "admin-password"}}' 2>/dev/null)" \
   || fail 'Grafana 관리자 Kubernetes Secret의 비밀번호를 조회하지 못했습니다.'
 [[ -n "${admin_user_b64}" && -n "${admin_password_b64}" ]] \
   || fail 'Grafana 관리자 Secret에 필요한 값이 없습니다.'
