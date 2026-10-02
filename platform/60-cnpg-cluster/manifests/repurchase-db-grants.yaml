@@ -1,0 +1,59 @@
+# Database 생성 뒤 기존 ai_dev에 권한을 부여한다. app은 DB 소유자이다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: repurchase-db-grants
+  namespace: database
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: repurchase-db-grants
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      containers:
+        - name: grants
+          image: postgres:17.6
+          command: [sh, -ec]
+          args:
+            - |
+              for attempt in $(seq 1 60); do
+                if psql -X -v ON_ERROR_STOP=1 -c 'GRANT CONNECT, CREATE ON DATABASE repurchase_db TO ai_dev;'; then
+                  exit 0
+                fi
+                sleep 5
+              done
+              echo 'repurchase_db 권한 부여 실패' >&2
+              exit 1
+          env:
+            - name: PGHOST
+              value: petflow-db-rw.database.svc.cluster.local
+            - name: PGPORT
+              value: "5432"
+            - name: PGDATABASE
+              value: repurchase_db
+            - name: PGCONNECT_TIMEOUT
+              value: "5"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: petflow-db-app
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: petflow-db-app
+                  key: password
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

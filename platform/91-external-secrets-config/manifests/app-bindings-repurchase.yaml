@@ -1,0 +1,24 @@
+# 기존 수동 생성 ai_dev 계정의 비밀번호를 재사용한다.
+# Secrets Manager petflow/repurchase/db에는 username/password를 저장한다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: db-credentials
+  namespace: repurchase
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: db-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: DB_USER
+      remoteRef:
+        key: petflow/repurchase/db
+        property: username
+    - secretKey: DB_PASSWORD
+      remoteRef:
+        key: petflow/repurchase/db
+        property: password

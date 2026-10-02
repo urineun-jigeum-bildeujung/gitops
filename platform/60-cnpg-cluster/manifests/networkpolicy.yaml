@@ -75,6 +75,23 @@ spec:
             matchLabels:
               app.kubernetes.io/name: "generic-service"
               app.kubernetes.io/instance: "dev-nutrition"
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "repurchase"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: "generic-service"
+              app.kubernetes.io/instance: "dev-repurchase"
+      ports:
+        - protocol: "TCP"
+          port: 5432
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "database"
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: repurchase-db-grants
       ports:
         - protocol: "TCP"
           port: 5432
