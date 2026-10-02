@@ -91,6 +91,18 @@ spec:
     name: petflow-db
   databaseReclaimPolicy: retain
 ---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: repurchase-db
+  namespace: database
+spec:
+  name: repurchase_db
+  owner: app
+  cluster:
+    name: petflow-db
+  databaseReclaimPolicy: retain
+---
 # 매일 03:00 KST (18:00 UTC)에 base backup을 생성한다.
 # CNPG ScheduledBackup cron은 초를 포함하는 6-field 형식이다.
 apiVersion: postgresql.cnpg.io/v1

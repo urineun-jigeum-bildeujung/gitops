@@ -123,6 +123,23 @@ class NetworkPolicyTests(unittest.TestCase):
         cls.obs = {p["metadata"]["name"]: p for p in read_yaml(
             ROOT / "platform/92-network-policies/manifests/observability.yaml")}
 
+    def test_repurchase_db_access_and_grant_job_are_scoped(self):
+        self.assertTrue(permits(self.db, "repurchase", service_labels("repurchase"), 5432))
+        self.assertFalse(permits(self.db, "repurchase", service_labels("unrelated"), 5432))
+        self.assertFalse(permits(self.db, "unrelated", service_labels("repurchase"), 5432))
+        grant_labels = {"app.kubernetes.io/name": "repurchase-db-grants"}
+        self.assertTrue(permits(self.db, "database", grant_labels, 5432))
+        self.assertFalse(permits(self.db, "repurchase", grant_labels, 5432))
+        self.assertFalse(permits(self.db, "database", grant_labels, 9187))
+        egress = read_yaml(ROOT / "platform/60-cnpg-cluster/manifests/repurchase-networkpolicy.yaml")[1]
+        self.assertTrue(permits(egress, "database", DB, 5432, direction="egress"))
+        replica = dict(DB, **{"cnpg.io/instanceRole": "replica"})
+        self.assertFalse(permits(egress, "database", replica, 5432, direction="egress"))
+        self.assertFalse(permits(egress, "unrelated", DB, 5432, direction="egress"))
+        for protocol in ("TCP", "UDP"):
+            self.assertTrue(permits(egress, "kube-system", {"k8s-app": "kube-dns"}, 53,
+                                    direction="egress", protocol=protocol))
+
     def test_disabled_defaults_and_empty_allowances(self):
         self.assertEqual(policies(render()), [])
         policy = policies(render(settings=["networkPolicy.enabled=true"]))[0]

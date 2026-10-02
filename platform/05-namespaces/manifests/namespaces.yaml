@@ -84,3 +84,10 @@ metadata:
   name: recommendation
   labels:
     kubernetes.io/metadata.name: recommendation
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: repurchase
+  labels:
+    kubernetes.io/metadata.name: repurchase
