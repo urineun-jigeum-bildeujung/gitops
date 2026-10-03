@@ -156,8 +156,13 @@ spec:
                                   configuredByUrl(false)
                                   credentialsId('gitops-value-push')
                                   traits {
+                                    // 일반 브랜치와 PR은 각각 탐색하고, 허용 대상만 Job으로 생성한다.
+                                    // PR Job 이름은 소스 브랜치명이 아닌 PR-번호이므로 반드시 별도로 허용한다.
+                                    headRegexFilter {
+                                      regex('^(main|dev|develop|PR-[0-9]+)$')
+                                    }
                                     gitHubBranchDiscovery {
-                                      strategyId(3) // 모든 브랜치
+                                      strategyId(3) // 일반 브랜치 탐색; 위 필터로 main/dev/develop만 허용
                                     }
                                     gitHubPullRequestDiscovery {
                                       strategyId(2) // PR head 커밋 그대로(merge 안 함) — Jenkinsfile의 merge-base 계산과 맞물려야 해서
@@ -207,8 +212,13 @@ spec:
                                   configuredByUrl(false)
                                   credentialsId('gitops-value-push')
                                   traits {
+                                    // 일반 브랜치와 PR은 각각 탐색하고, 허용 대상만 Job으로 생성한다.
+                                    // PR Job 이름은 소스 브랜치명이 아닌 PR-번호이므로 반드시 별도로 허용한다.
+                                    headRegexFilter {
+                                      regex('^(main|dev|develop|PR-[0-9]+)$')
+                                    }
                                     gitHubBranchDiscovery {
-                                      strategyId(3) // 모든 브랜치
+                                      strategyId(3) // 일반 브랜치 탐색; 위 필터로 main/dev/develop만 허용
                                     }
                                     gitHubPullRequestDiscovery {
                                       strategyId(2) // PR head 커밋 그대로(merge 안 함)
@@ -252,8 +262,13 @@ spec:
                                   configuredByUrl(false)
                                   credentialsId('gitops-value-push')
                                   traits {
+                                    // 일반 브랜치와 PR은 각각 탐색하고, 허용 대상만 Job으로 생성한다.
+                                    // PR Job 이름은 소스 브랜치명이 아닌 PR-번호이므로 반드시 별도로 허용한다.
+                                    headRegexFilter {
+                                      regex('^(main|dev|develop|PR-[0-9]+)$')
+                                    }
                                     gitHubBranchDiscovery {
-                                      strategyId(3) // 모든 브랜치
+                                      strategyId(3) // 일반 브랜치 탐색; 위 필터로 main/dev/develop만 허용
                                     }
                                     gitHubPullRequestDiscovery {
                                       strategyId(2) // PR head 커밋 그대로(merge 안 함)
