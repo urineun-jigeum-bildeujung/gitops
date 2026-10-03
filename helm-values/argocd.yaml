@@ -5,6 +5,9 @@ configs:
 repoServer:
   # 초기 GitOps 동기화에서 여러 Helm 차트를 렌더링할 때 상태 검사 시간 초과로
   # repo-server가 반복 재시작되지 않도록 부팅 시간과 응답 시간을 확보한다.
+  # apply테스트에서 계속된 재시작으로 동시성 제한 추가
+  extraArgs:
+    - --parallelismlimit=2
   startupProbe:
     enabled: true
     timeoutSeconds: 5
