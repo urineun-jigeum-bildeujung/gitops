@@ -1,0 +1,67 @@
+# 수동 검증 전용: ArgoCD 자동 동기화 경로 밖에 둔다.
+# contract-check는 모델 다운로드/예측/DB 쓰기를 수행하지 않는다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    role: repurchase-shadow
+  name: repurchase-shadow-contract-check
+  namespace: repurchase
+spec:
+  backoffLimit: 0
+  completionMode: NonIndexed
+  completions: 1
+  parallelism: 1
+  podReplacementPolicy: TerminatingOrFailed
+  suspend: false
+  template:
+    metadata:
+      labels:
+        role: repurchase-shadow
+    spec:
+      containers:
+      - args:
+        - contract-check
+        - --source-contract
+        - /input/source_orders.json
+        - --publication-contract
+        - /input/prediction_publications.json
+        env:
+        - name: AWS_REGION
+          value: ap-northeast-2
+        - name: AWS_DEFAULT_REGION
+          value: ap-northeast-2
+        - name: HTTP_PROXY
+          value: http://generic-service-egress.repurchase.svc.cluster.local:3128
+        - name: HTTPS_PROXY
+          value: http://generic-service-egress.repurchase.svc.cluster.local:3128
+        - name: NO_PROXY
+          value: localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23
+        image: 297165773875.dkr.ecr.ap-northeast-2.amazonaws.com/petflow/repurchase:3de02381e0914174f05c4c0e61ec842507696015
+        imagePullPolicy: IfNotPresent
+        name: batch
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /input
+          name: input
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: generic-service
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: repurchase-shadow-input
+        name: input
+  ttlSecondsAfterFinished: 3600

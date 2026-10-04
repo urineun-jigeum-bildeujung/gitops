@@ -1,0 +1,30 @@
+# 기존 repurchase DB 계정을 재사용한다. 비밀번호/완성된 DSN은 Git에 저장하지 않는다.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repurchase-shadow-dsns
+  namespace: repurchase
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: repurchase-shadow-dsns
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        # URL 인코딩 후 공백의 '+'를 '%20'으로 바꿔 PostgreSQL URI로 사용한다.
+        REPURCHASE_ORDER_DATABASE_DSN: 'postgresql://{{ .username | urlquery | replace "+" "%20" }}:{{ .password | urlquery | replace "+" "%20" }}@petflow-db-rw.database.svc.cluster.local:5432/order_db?sslmode=require&connect_timeout=10'
+        REPURCHASE_MEMBER_DATABASE_DSN: 'postgresql://{{ .username | urlquery | replace "+" "%20" }}:{{ .password | urlquery | replace "+" "%20" }}@petflow-db-rw.database.svc.cluster.local:5432/member_db?sslmode=require&connect_timeout=10'
+        REPURCHASE_RESULT_DATABASE_DSN: 'postgresql://{{ .username | urlquery | replace "+" "%20" }}:{{ .password | urlquery | replace "+" "%20" }}@petflow-db-rw.database.svc.cluster.local:5432/repurchase_db?sslmode=require&connect_timeout=10'
+  data:
+    - secretKey: username
+      remoteRef:
+        key: petflow/repurchase/db
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: petflow/repurchase/db
+        property: password

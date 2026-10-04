@@ -1,0 +1,165 @@
+# GitOps가 재가동 시 생성하는 대기 Job. 최초 생성 시 suspend=true로 실행하지 않는다.
+# 실행/중지 상태는 Application의 ignoreDifferences로 수동 조작을 유지한다.
+# TTL 자동 삭제를 설정하지 않아 완료 Job의 삭제/재생성 반복을 방지한다.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations: {argocd.argoproj.io/ignore-healthcheck: 'true', argocd.argoproj.io/sync-wave: '1'}
+  labels: {role: repurchase-shadow}
+  name: repurchase-shadow-run
+  namespace: repurchase
+spec:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 0
+  suspend: true
+  template:
+    metadata:
+      labels: {role: repurchase-shadow}
+    spec:
+      containers:
+      - args: [shadow-run, --model-directory, /models/xgboost_aft, --artifact-id,
+          ec25eb1bcd8f24ce36a2397c1544cb087cb970af532365de7f8ec900aeb4b7fb, --as-of,
+          $(REPURCHASE_AS_OF), --created-at, $(REPURCHASE_CREATED_AT), --publication-id,
+          $(REPURCHASE_PUBLICATION_ID), --window-days, '30', --allow-shadow-write]
+        env:
+        - {name: AWS_REGION, value: ap-northeast-2}
+        - {name: AWS_DEFAULT_REGION, value: ap-northeast-2}
+        - {name: HTTP_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: HTTPS_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: NO_PROXY, value: 'localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23'}
+        - name: REPURCHASE_ORDER_DATABASE_DSN
+          valueFrom:
+            secretKeyRef: {key: REPURCHASE_ORDER_DATABASE_DSN, name: repurchase-shadow-dsns}
+        - name: REPURCHASE_MEMBER_DATABASE_DSN
+          valueFrom:
+            secretKeyRef: {key: REPURCHASE_MEMBER_DATABASE_DSN, name: repurchase-shadow-dsns}
+        - name: REPURCHASE_RESULT_DATABASE_DSN
+          valueFrom:
+            secretKeyRef: {key: REPURCHASE_RESULT_DATABASE_DSN, name: repurchase-shadow-dsns}
+        - name: REPURCHASE_AS_OF
+          valueFrom:
+            configMapKeyRef: {key: REPURCHASE_AS_OF, name: repurchase-shadow-run-config}
+        - name: REPURCHASE_CREATED_AT
+          valueFrom:
+            configMapKeyRef: {key: REPURCHASE_CREATED_AT, name: repurchase-shadow-run-config}
+        - name: REPURCHASE_PUBLICATION_ID
+          valueFrom:
+            configMapKeyRef: {key: REPURCHASE_PUBLICATION_ID, name: repurchase-shadow-run-config}
+        image: 297165773875.dkr.ecr.ap-northeast-2.amazonaws.com/petflow/repurchase:3de02381e0914174f05c4c0e61ec842507696015
+        name: batch
+        resources:
+          limits: {cpu: '1', memory: 1Gi}
+          requests: {cpu: 100m, memory: 256Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - {mountPath: /models/xgboost_aft, name: models, readOnly: true}
+      initContainers:
+      - args: [s3, cp, 's3://petflow-dev-ml-artifacts/repurchase/ec25eb1bcd8f24ce36a2397c1544cb087cb970af532365de7f8ec900aeb4b7fb/manifest.json',
+          /models/xgboost_aft/manifest.json, --region, ap-northeast-2, --only-show-errors]
+        command: [aws]
+        env:
+        - {name: AWS_REGION, value: ap-northeast-2}
+        - {name: AWS_DEFAULT_REGION, value: ap-northeast-2}
+        - {name: HTTP_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: HTTPS_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: NO_PROXY, value: 'localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23'}
+        - {name: AWS_EC2_METADATA_DISABLED, value: 'true'}
+        - {name: AWS_PAGER, value: ''}
+        image: public.ecr.aws/aws-cli/aws-cli:2.27.41
+        name: download-manifest
+        resources:
+          limits: {cpu: 500m, memory: 256Mi}
+          requests: {cpu: 50m, memory: 128Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - {mountPath: /models/xgboost_aft, name: models, readOnly: false}
+      - args: [s3, cp, 's3://petflow-dev-ml-artifacts/repurchase/ec25eb1bcd8f24ce36a2397c1544cb087cb970af532365de7f8ec900aeb4b7fb/model.json',
+          /models/xgboost_aft/model.json, --region, ap-northeast-2, --only-show-errors]
+        command: [aws]
+        env:
+        - {name: AWS_REGION, value: ap-northeast-2}
+        - {name: AWS_DEFAULT_REGION, value: ap-northeast-2}
+        - {name: HTTP_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: HTTPS_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: NO_PROXY, value: 'localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23'}
+        - {name: AWS_EC2_METADATA_DISABLED, value: 'true'}
+        - {name: AWS_PAGER, value: ''}
+        image: public.ecr.aws/aws-cli/aws-cli:2.27.41
+        name: download-model
+        resources:
+          limits: {cpu: 500m, memory: 256Mi}
+          requests: {cpu: 50m, memory: 128Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - {mountPath: /models/xgboost_aft, name: models, readOnly: false}
+      - args: ['from pathlib import Path
+
+            import hashlib, json
+
+            root = Path(''/models/xgboost_aft'')
+
+            manifest_bytes = (root / ''manifest.json'').read_bytes()
+
+            assert hashlib.sha256(manifest_bytes).hexdigest() == ''94eaf7e9fd0ba37bce0ce2d8e67069611b980548d59bcdca8df82a0fdbfdc4a1'',
+            ''manifest SHA-256 mismatch''
+
+            manifest = json.loads(manifest_bytes)
+
+            assert manifest[''artifact_id''] == ''ec25eb1bcd8f24ce36a2397c1544cb087cb970af532365de7f8ec900aeb4b7fb'',
+            ''artifact ID mismatch''
+
+            assert manifest[''model_filename''] == ''model.json'', ''unexpected model
+            filename''
+
+            assert hashlib.sha256((root / ''model.json'').read_bytes()).hexdigest()
+            == manifest[''model_sha256''], ''model SHA-256 mismatch''
+
+            from scripts.modeling.artifacts import load_model_artifact
+
+            model = load_model_artifact(root)
+
+            assert model.artifact_id == ''ec25eb1bcd8f24ce36a2397c1544cb087cb970af532365de7f8ec900aeb4b7fb'',
+            ''loaded model ID mismatch''
+
+            print(json.dumps({''event'': ''repurchase_model_loaded'', ''artifact_id'':
+            model.artifact_id, ''model_sha256'': manifest[''model_sha256'']}))
+
+            ']
+        command: [python, -c]
+        env:
+        - {name: AWS_REGION, value: ap-northeast-2}
+        - {name: AWS_DEFAULT_REGION, value: ap-northeast-2}
+        - {name: HTTP_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: HTTPS_PROXY, value: 'http://generic-service-egress.repurchase.svc.cluster.local:3128'}
+        - {name: NO_PROXY, value: 'localhost,127.0.0.1,::1,.svc,.svc.cluster.local,169.254.170.23'}
+        image: 297165773875.dkr.ecr.ap-northeast-2.amazonaws.com/petflow/repurchase:3de02381e0914174f05c4c0e61ec842507696015
+        name: verify-model
+        resources:
+          limits: {cpu: '1', memory: 1Gi}
+          requests: {cpu: 100m, memory: 256Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        volumeMounts:
+        - {mountPath: /models/xgboost_aft, name: models, readOnly: true}
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      serviceAccountName: generic-service
+      volumes:
+      - emptyDir: {sizeLimit: 128Mi}
+        name: models

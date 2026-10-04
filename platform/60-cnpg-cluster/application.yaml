@@ -1,5 +1,5 @@
 # Cluster/ObjectStore는 infra/tapply.sh가 복원 경로를 결정해 먼저 생성한다.
-# 이 Application은 서비스별 Database, ScheduledBackup, NetworkPolicy를 관리한다.
+# 서비스별 Database, ScheduledBackup, NetworkPolicy 및 재구매 수동 실행 준비를 관리한다.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -18,6 +18,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: database
+  # GitOps는 미존재 Job을 suspend=true로 생성하되 수동 실행/중지를 되돌리지 않는다.
+  ignoreDifferences:
+    - group: batch
+      kind: Job
+      name: repurchase-shadow-run
+      namespace: repurchase
+      jsonPointers:
+        - /spec/suspend
   syncPolicy:
     automated:
       # 기존 배포의 Cluster/ObjectStore가 이 Application의 추적 대상이었다.
@@ -27,3 +35,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
