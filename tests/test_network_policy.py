@@ -134,11 +134,51 @@ class NetworkPolicyTests(unittest.TestCase):
         egress = read_yaml(ROOT / "platform/60-cnpg-cluster/manifests/repurchase-networkpolicy.yaml")[1]
         self.assertTrue(permits(egress, "database", DB, 5432, direction="egress"))
         replica = dict(DB, **{"cnpg.io/instanceRole": "replica"})
-        self.assertFalse(permits(egress, "database", replica, 5432, direction="egress"))
+        self.assertTrue(permits(egress, "database", replica, 5432, direction="egress"))
         self.assertFalse(permits(egress, "unrelated", DB, 5432, direction="egress"))
         for protocol in ("TCP", "UDP"):
             self.assertTrue(permits(egress, "kube-system", {"k8s-app": "kube-dns"}, 53,
                                     direction="egress", protocol=protocol))
+
+    def test_repurchase_manual_and_helm_paths_match_both_ends(self):
+        platform = policies(read_yaml(ROOT / "platform/60-cnpg-cluster/manifests/repurchase-networkpolicy.yaml"))
+        documents = render("repurchase", VALUES / "_repurchase/values.yaml")
+        combined = platform + policies(documents)
+        proxy = labels("egress-proxy", "dev-repurchase")
+
+        def allowed(source, target_ns, target, port, direction="egress", protocol="TCP", ip=None):
+            return any(labels_match(p["spec"]["podSelector"], source) and
+                       direction.title() in p["spec"]["policyTypes"] and
+                       permits(p, target_ns, target, port, direction, protocol, ip)
+                       for p in combined)
+
+        for worker in (service_labels("repurchase"), {"role": "repurchase-shadow"}):
+            for role in ("primary", "replica"):
+                db = dict(DB, **{"cnpg.io/instanceRole": role})
+                self.assertTrue(allowed(worker, "database", db, 5432))
+                self.assertTrue(permits(self.db, "repurchase", worker, 5432))
+                self.assertFalse(permits(self.db, "unrelated", worker, 5432))
+            self.assertFalse(allowed(worker, "unrelated", DB, 5432))
+            self.assertFalse(allowed(worker, "database", {"cnpg.io/cluster": "other-db"}, 5432))
+            for protocol in ("TCP", "UDP"):
+                self.assertTrue(allowed(worker, "kube-system", {"k8s-app": "kube-dns"}, 53,
+                                        protocol=protocol))
+            self.assertTrue(allowed(worker, "", {}, 80, ip="169.254.170.23"))
+            self.assertFalse(allowed(worker, "", {}, 443, ip="169.254.170.23"))
+            self.assertFalse(allowed(worker, "", {}, 80, ip="169.254.169.254"))
+            self.assertFalse(allowed(worker, "", {}, 443, ip="8.8.8.8"))
+            self.assertTrue(allowed(worker, "repurchase", proxy, 3128))
+            self.assertTrue(allowed(proxy, "repurchase", worker, 3128, "ingress"))
+            self.assertFalse(allowed(worker, "unrelated", proxy, 3128))
+            self.assertFalse(allowed(worker, "redis", REDIS, 6379))
+            self.assertFalse(allowed(worker, "kafka", KAFKA, 9092))
+            self.assertFalse(allowed(worker, "member-service", service_labels("member-service"), 8443))
+            self.assertFalse(allowed(worker, "member-service", service_labels("member-service"), 8080, "ingress"))
+        self.assertFalse(allowed({"role": "other"}, "database", DB, 5432))
+        self.assertFalse(allowed(proxy, "repurchase", {"role": "other"}, 3128, "ingress"))
+        config = next(d for d in documents if d["kind"] == "ConfigMap")["data"]["squid.conf"]
+        self.assertIn("acl allowed_domains dstdomain -n petflow-dev-ml-artifacts.s3.ap-northeast-2.amazonaws.com\n", config)
+        self.assertIn("http_access deny !allowed_domains", config)
 
     def test_disabled_defaults_and_empty_allowances(self):
         self.assertEqual(policies(render()), [])

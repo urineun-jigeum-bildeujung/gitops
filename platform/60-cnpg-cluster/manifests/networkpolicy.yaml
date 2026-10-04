@@ -82,6 +82,13 @@ spec:
             matchLabels:
               app.kubernetes.io/name: "generic-service"
               app.kubernetes.io/instance: "dev-repurchase"
+        # 기존 수동 SHADOW Job도 DB에 연결할 수 있도록 수신 측 허용.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: "repurchase"
+          podSelector:
+            matchLabels:
+              role: repurchase-shadow
       ports:
         - protocol: "TCP"
           port: 5432

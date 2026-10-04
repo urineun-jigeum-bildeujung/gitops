@@ -38,7 +38,94 @@ spec:
           podSelector:
             matchLabels:
               cnpg.io/cluster: petflow-db
-              cnpg.io/instanceRole: primary
       ports:
         - protocol: TCP
           port: 5432
+    # AWS가 지정한 고정 IPv4 엔드포인트(노드/Pod IP가 아님).
+    # SDK 자격증명 요청은 NO_PROXY로 이 주소를 직접 사용한다.
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: egress-proxy
+              app.kubernetes.io/instance: dev-repurchase
+      ports:
+        - protocol: TCP
+          port: 3128
+---
+# 수동 Job의 spec.template.metadata.labels.role 기준.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: repurchase-shadow-egress
+  namespace: repurchase
+spec:
+  podSelector:
+    matchLabels:
+      role: repurchase-shadow
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: database
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: petflow-db
+      ports:
+        - protocol: TCP
+          port: 5432
+    # AWS가 지정한 고정 IPv4 엔드포인트(노드/Pod IP가 아님).
+    # SDK 자격증명 요청은 NO_PROXY로 이 주소를 직접 사용한다.
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: egress-proxy
+              app.kubernetes.io/instance: dev-repurchase
+      ports:
+        - protocol: TCP
+          port: 3128
+---
+# 수동 Job -> S3 프록시의 수신 측 허용. Helm Job은 차트 정책에서 허용한다.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: repurchase-shadow-proxy-ingress
+  namespace: repurchase
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: egress-proxy
+      app.kubernetes.io/instance: dev-repurchase
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              role: repurchase-shadow
+      ports:
+        - protocol: TCP
+          port: 3128
