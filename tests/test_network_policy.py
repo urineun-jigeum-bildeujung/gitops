@@ -142,7 +142,10 @@ class NetworkPolicyTests(unittest.TestCase):
 
     def test_repurchase_manual_and_helm_paths_match_both_ends(self):
         platform = policies(read_yaml(ROOT / "platform/60-cnpg-cluster/manifests/repurchase-networkpolicy.yaml"))
-        documents = render("repurchase", VALUES / "_repurchase/values.yaml")
+        repurchase_values = VALUES / "repurchase/values.yaml"
+        if not repurchase_values.exists():
+            repurchase_values = VALUES / "_repurchase/values.yaml"
+        documents = render("repurchase", repurchase_values)
         combined = platform + policies(documents)
         proxy = labels("egress-proxy", "dev-repurchase")
 
