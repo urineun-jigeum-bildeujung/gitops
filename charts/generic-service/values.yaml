@@ -199,3 +199,7 @@ cronJobs: []
   #   resources: {}                # 비우면 위 전역 resources 사용
   #   volumeMounts: []
   #   volumes: []
+
+# 이미지/Pod 설정별로 새 이름을 만드는 수동 실행 Job. 항상 suspend=true로 생성한다.
+# podSpec의 컨테이너에 image가 없으면 서비스 image를 사용한다.
+manualJobs: []
