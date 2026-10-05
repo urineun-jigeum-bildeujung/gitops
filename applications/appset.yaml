@@ -71,6 +71,11 @@ spec:
           kind: Rollout
           jsonPointers:
             - /spec/replicas
+        # 수동 검증 Job의 실행/중지는 사용자가 관리한다.
+        - group: batch
+          kind: Job
+          jqPathExpressions:
+            - 'select(.metadata.labels["petflow.io/manual-job"] == "true") | .spec.suspend'
       syncPolicy:
         automated:
           prune: true

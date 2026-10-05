@@ -1,0 +1,51 @@
+{{- range .Values.manualJobs }}
+{{- $pod := deepCopy .podSpec }}
+{{- $image := printf "%s:%s" (required "manualJobs requires image.repository" $.Values.image.repository) (required "manualJobs requires image.tag" $.Values.image.tag) }}
+{{- range concat $pod.containers (default (list) $pod.initContainers) }}
+{{- if not .image }}
+{{- $_ := set . "image" $image }}
+{{- $_ := set . "imagePullPolicy" $.Values.image.pullPolicy }}
+{{- end }}
+{{- if $.Values.externalEgress.enabled }}
+{{- range .env }}
+{{- if has .name (list "HTTP_PROXY" "HTTPS_PROXY" "NO_PROXY" "JAVA_TOOL_OPTIONS" "NODE_OPTIONS" "NODE_USE_ENV_PROXY") }}
+{{- fail "externalEgress proxy environment must not be duplicated in manualJobs.podSpec" }}
+{{- end }}
+{{- end }}
+{{- $proxyEnv := include "generic-service.externalEgressEnv" $ | fromYamlArray }}
+{{- $_ := set . "env" (concat (default (list) .env) $proxyEnv) }}
+{{- end }}
+{{- end }}
+{{- $identity := dict "podSpec" $pod "podLabels" .podLabels "backoffLimit" .backoffLimit "activeDeadlineSeconds" .activeDeadlineSeconds }}
+{{- $revision := toJson $identity | sha256sum | trunc 12 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" (.name | trunc 50 | trimSuffix "-") $revision }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "generic-service.labels" $ | nindent 4 }}
+    petflow.io/manual-job: "true"
+  annotations:
+    argocd.argoproj.io/ignore-healthcheck: "true"
+    argocd.argoproj.io/sync-wave: "1"
+    # Tag changes must never delete an earlier running/completed validation Job.
+    argocd.argoproj.io/sync-options: Prune=false
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+spec:
+  suspend: true
+  backoffLimit: {{ .backoffLimit | default 0 }}
+  {{- with .activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ . }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "generic-service.selectorLabels" $ | nindent 8 }}
+        {{- with .podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- toYaml $pod | nindent 6 }}
+{{- end }}
