@@ -57,3 +57,21 @@ spec:
       remoteRef:
         key: petflow-db-app
         property: password
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gateway-secret
+  namespace: recommendation
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: gateway-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: INTERNAL_GATEWAY_SECRET
+      remoteRef:
+        key: petflow/internal/gateway-secret
